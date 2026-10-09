@@ -25,14 +25,26 @@
   <main>
     <section class="week-toolbar" aria-label="日期区间选择">
       <button id="previousWeekBtn" class="icon-button" aria-label="上一区间">‹</button>
-      <label class="date-control">
-        <span>开始日期</span>
-        <input id="rangeStartInput" type="date">
-      </label>
-      <label class="date-control">
-        <span>结束日期</span>
-        <input id="rangeEndInput" type="date">
-      </label>
+      <div class="range-picker-wrap">
+        <button id="rangePickerBtn" class="range-picker-button" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <span class="range-picker-label">选择日期区间</span>
+          <strong id="rangePickerText"></strong>
+          <span class="range-picker-icon" aria-hidden="true">▾</span>
+        </button>
+        <div id="rangePickerPanel" class="range-picker-panel" role="dialog" aria-label="选择日期区间" hidden>
+          <div class="range-picker-header">
+            <button id="previousMonthBtn" class="icon-button compact" type="button" aria-label="上一个月">‹</button>
+            <div>
+              <strong>选择日期区间</strong>
+              <span id="calendarPrompt">请先选择开始日期</span>
+            </div>
+            <button id="nextMonthBtn" class="icon-button compact" type="button" aria-label="下一个月">›</button>
+            <button id="closeRangePickerBtn" class="calendar-close" type="button" aria-label="关闭日期选择">×</button>
+          </div>
+          <div id="calendarMonths" class="calendar-months"></div>
+          <div class="range-picker-footer"><span>最长可选择 14 天</span><span id="calendarSelectionSummary"></span></div>
+        </div>
+      </div>
       <button id="todayWeekBtn" class="button secondary">回到本期</button>
       <button id="nextWeekBtn" class="icon-button" aria-label="下一区间">›</button>
       <div class="week-summary">
@@ -55,6 +67,7 @@
           <div class="schedule-title-row">
             <h2>周排班</h2>
             <label class="room-scope-control"><span>直播间</span><select id="scheduleRoomSelect"><option value="">请选择直播间</option></select></label>
+            <button id="saveScheduleBtn" class="button primary" type="button">保存排班</button>
           </div>
           <p id="scheduleHint">请选择直播间，再为该直播间安排主播、副播和直播时间。</p>
         </div>
@@ -63,6 +76,15 @@
           <span><i class="dot conflict"></i>排班冲突</span>
         </div>
       </div>
+      <details id="autoScheduler" class="auto-scheduler">
+        <summary>智能排班 · 四组固定班组模板</summary>
+        <div class="auto-scheduler-intro">
+          <p>先确定每日休假人员，再配置四组正式班组。系统会在所选区间逐日避开休假组，并提示需要补充的兼职与加班。</p>
+          <button id="generateScheduleBtn" class="button primary" type="button">生成区间排班</button>
+        </div>
+        <div id="groupTemplateGrid" class="group-template-grid"></div>
+        <p id="autoScheduleStatus" class="auto-schedule-status" role="status"></p>
+      </details>
       <div id="scheduleEmptyState" class="schedule-empty-state" hidden>请先在“直播间管理”中新建直播间，并在上方选择。</div>
       <div class="schedule-scroll">
         <table class="schedule-table">

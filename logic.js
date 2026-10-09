@@ -67,6 +67,10 @@
     return { start, end };
   }
 
+  function intervalForTimes(startTime, endTime) {
+    return intervalForSlot({ startTime, endTime });
+  }
+
   function intervalsOverlap(first, second) {
     return first.start < second.end && second.start < first.end;
   }
@@ -100,6 +104,19 @@
           hostName: slot.hostId ? getPersonName(slot.hostId, people, slot.hostNameSnapshot) : "",
           coHostName: slot.coHostId ? getPersonName(slot.coHostId, people, slot.coHostNameSnapshot) : ""
         });
+        if (!isOvertimeShift(shiftKey) && (slot.overtimeStartTime || slot.overtimeEndTime)) {
+          entries.push({
+            dayKey,
+            shiftKey,
+            entryKind: "embedded-overtime",
+            isOvertime: true,
+            slot,
+            hours: durationHours(slot.overtimeStartTime, slot.overtimeEndTime),
+            interval: intervalForTimes(slot.overtimeStartTime, slot.overtimeEndTime),
+            hostName: slot.hostId ? getPersonName(slot.hostId, people, slot.hostNameSnapshot) : "",
+            coHostName: slot.coHostId ? getPersonName(slot.coHostId, people, slot.coHostNameSnapshot) : ""
+          });
+        }
       });
     });
     return entries;
@@ -130,7 +147,7 @@
     });
 
     return {
-      sessionCount: entries.filter((entry) => entry.hours > 0).length,
+      sessionCount: entries.filter((entry) => entry.hours > 0 && entry.entryKind !== "embedded-overtime").length,
       totalPersonHours: Array.from(rows.values()).reduce((sum, row) => sum + row.totalHours, 0),
       rows: Array.from(rows.values()).filter((row) => row.totalHours > 0).sort((a, b) => b.totalHours - a.totalHours || a.name.localeCompare(b.name, "zh-CN"))
     };
@@ -142,7 +159,7 @@
 
     entries.forEach((entry) => {
       const { slot } = entry;
-      if (slot.hostId && slot.coHostId && slot.hostId === slot.coHostId) {
+      if (entry.entryKind !== "embedded-overtime" && slot.hostId && slot.coHostId && slot.hostId === slot.coHostId) {
         conflicts.push({
           type: "same-role-person",
           dayKey: entry.dayKey,
@@ -212,8 +229,38 @@
   function hasDayContent(day) {
     if (!day || typeof day !== "object") return false;
     if ((Array.isArray(day.leavePeople) && day.leavePeople.length) || day.leaveNote) return true;
-    return Object.entries(day).some(([key, slot]) => !["leavePeople", "leaveNote", "updatedAt"].includes(key) && slot && typeof slot === "object" &&
-      (slot.hostId || slot.coHostId || slot.note || (slot.startTime && slot.endTime && isOvertimeShift(key))));
+    return Object.entries(day).some(([key, slot]) => !["leavePeople", "leaveNote", "updatedAt", "autoSchedule"].includes(key) && slot && typeof slot === "object" &&
+      (slot.hostId || slot.coHostId || slot.note || slot.overtimeStartTime || slot.overtimeEndTime || (slot.startTime && slot.endTime && isOvertimeShift(key))));
+  }
+
+  function planDayFromTemplates(templates, leavePersonIds) {
+    const leave = new Set(leavePersonIds || []);
+    const active = (templates || []).filter((group) => group && group.hostId && group.coHostId && !leave.has(group.hostId) && !leave.has(group.coHostId)).map((group) => ({ ...group }));
+    const mainKeys = ["morning", "afternoon", "evening"];
+    const formalGroupCount = active.length;
+    const assignments = active.map((group) => ({ ...group }));
+    let scenario = formalGroupCount >= 4 ? "four" : formalGroupCount === 3 ? "three" : formalGroupCount === 2 ? "two" : "critical";
+    let needsPartTime = formalGroupCount === 2 || formalGroupCount === 3;
+    const requiredOvertimeGroupIds = formalGroupCount === 2 ? active.map((group) => group.id) : [];
+    if (formalGroupCount === 2) {
+      const occupiedMain = new Set(assignments.filter((group) => mainKeys.includes(group.shiftKey)).map((group) => group.shiftKey));
+      const missingMain = mainKeys.filter((key) => !occupiedMain.has(key));
+      const secondary = assignments.find((group) => group.shiftKey === "secondary");
+      if (secondary && missingMain.length) {
+        secondary.movedFromShiftKey = "secondary";
+        secondary.shiftKey = missingMain[0];
+      }
+    }
+    const occupied = new Set(assignments.map((group) => group.shiftKey));
+    const targetKeys = formalGroupCount === 2 ? mainKeys : [...mainKeys, "secondary"];
+    return {
+      formalGroupCount,
+      scenario,
+      assignments,
+      missingShiftKeys: targetKeys.filter((key) => !occupied.has(key)),
+      needsPartTime,
+      requiredOvertimeGroupIds
+    };
   }
 
   function hasWeekContent(weekRecord) {
@@ -229,6 +276,16 @@
     if (count < 1) throw new Error("结束日期不能早于开始日期");
     if (count > maxDays) throw new Error(`日期区间最多支持${maxDays}天`);
     return Array.from({ length: count }, (_, index) => addDays(start, index));
+  }
+
+  function chooseRangeDate(startValue, clickedValue, maxDays = 14) {
+    const clicked = clickedValue instanceof Date ? clickedValue : parseLocalDate(clickedValue);
+    if (!clicked) throw new Error("请选择有效日期");
+    const clickedKey = toIsoDate(clicked);
+    const start = startValue instanceof Date ? startValue : parseLocalDate(startValue);
+    if (!start || clicked < start) return { start: clickedKey, end: "", complete: false };
+    dateRange(start, clicked, maxDays);
+    return { start: toIsoDate(start), end: clickedKey, complete: true };
   }
 
   function historyRecords(state, todayValue) {
@@ -373,9 +430,11 @@
     hasDayContent,
     hasWeekContent,
     dateRange,
+    chooseRangeDate,
     historyRecords,
     targetWeekAvailable,
     copyWeekRecord,
+    planDayFromTemplates,
     migrateState
   };
 });

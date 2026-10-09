@@ -48,6 +48,31 @@ test("separates overtime and counts the same person only once per slot", () => {
   assert.equal(result.totalPersonHours, 7);
 });
 
+test("counts embedded overtime separately without adding a live session", () => {
+  const people = [{ id: "a", name: "甲" }, { id: "b", name: "乙" }];
+  const week = { monday: { morning: { hostId: "a", coHostId: "b", startTime: "08:00", endTime: "12:30", overtimeStartTime: "12:30", overtimeEndTime: "14:00" } } };
+  const result = Logic.calculateStatistics(week, people);
+  assert.equal(result.sessionCount, 1);
+  assert.deepEqual([result.rows[0].liveHours, result.rows[0].overtimeHours], [4.5, 1.5]);
+});
+
+test("plans four, three and two-group days from leave conflicts", () => {
+  const templates = [
+    { id: "g1", hostId: "h1", coHostId: "c1", shiftKey: "morning" },
+    { id: "g2", hostId: "h2", coHostId: "c2", shiftKey: "afternoon" },
+    { id: "g3", hostId: "h3", coHostId: "c3", shiftKey: "evening" },
+    { id: "g4", hostId: "h4", coHostId: "c4", shiftKey: "secondary" }
+  ];
+  assert.equal(Logic.planDayFromTemplates(templates, []).scenario, "four");
+  const three = Logic.planDayFromTemplates(templates, ["h1"]);
+  assert.deepEqual([three.scenario, three.needsPartTime, three.missingShiftKeys], ["three", true, ["morning"]]);
+  const two = Logic.planDayFromTemplates(templates, ["h1", "h2"]);
+  assert.equal(two.scenario, "two");
+  assert.equal(two.assignments.some((item) => item.movedFromShiftKey === "secondary" && item.shiftKey === "morning"), true);
+  assert.equal(two.missingShiftKeys.length, 1);
+  assert.deepEqual(two.requiredOvertimeGroupIds.sort(), ["g3", "g4"]);
+});
+
 test("detects overlapping assignments", () => {
   const people = [{ id: "a", name: "甲" }, { id: "b", name: "乙" }, { id: "c", name: "丙" }];
   const week = { monday: {
@@ -122,6 +147,16 @@ test("accepts one and fourteen day ranges", () => {
 test("rejects reversed and overlong ranges", () => {
   assert.throws(() => Logic.dateRange("2026-10-02", "2026-10-01"));
   assert.throws(() => Logic.dateRange("2026-10-01", "2026-10-15"));
+});
+
+test("selects a hotel-style date range in two steps", () => {
+  assert.deepEqual(Logic.chooseRangeDate("", "2026-10-05"), { start: "2026-10-05", end: "", complete: false });
+  assert.deepEqual(Logic.chooseRangeDate("2026-10-05", "2026-10-11"), { start: "2026-10-05", end: "2026-10-11", complete: true });
+});
+
+test("restarts the range when an earlier date is clicked and rejects day fifteen", () => {
+  assert.deepEqual(Logic.chooseRangeDate("2026-10-05", "2026-10-03"), { start: "2026-10-03", end: "", complete: false });
+  assert.throws(() => Logic.chooseRangeDate("2026-10-01", "2026-10-15"), /最多支持14天/);
 });
 
 test("migrates V3 leave notes to concrete dates", () => {
