@@ -209,19 +209,67 @@
     return conflicts;
   }
 
+  function hasWeekContent(weekRecord) {
+    const days = weekRecord?.days || weekRecord || {};
+    return Object.values(days).some((day) => {
+      if (!day || typeof day !== "object") return false;
+      if (Array.isArray(day.leavePeople) && day.leavePeople.length) return true;
+      return Object.entries(day).some(([key, slot]) => key !== "leavePeople" && slot && typeof slot === "object" &&
+        (slot.hostId || slot.coHostId || slot.note || (slot.startTime && slot.endTime && isOvertimeShift(key))));
+    });
+  }
+
+  function historyRecords(state, todayValue) {
+    const today = todayValue instanceof Date ? new Date(todayValue) : parseLocalDate(todayValue);
+    if (!today || Number.isNaN(today.getTime())) return [];
+    const threshold = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+    const records = [];
+    Object.entries(state?.schedules || {}).forEach(([roomKey, weeks]) => {
+      Object.entries(weeks || {}).forEach(([weekKey, week]) => {
+        const monday = parseLocalDate(weekKey);
+        if (!monday) return;
+        const sunday = addDays(monday, 6);
+        if (sunday < threshold || monday > today || !hasWeekContent(week)) return;
+        records.push({ roomKey, weekKey, week });
+      });
+    });
+    return records.sort((a, b) => b.weekKey.localeCompare(a.weekKey) || a.roomKey.localeCompare(b.roomKey));
+  }
+
+  function targetWeekAvailable(existing) {
+    return !existing || !hasWeekContent(existing);
+  }
+
+  function copyWeekRecord(source, clearContent, timestamp) {
+    if (!source || !source.days || typeof source.days !== "object") throw new Error("历史周表格式无效");
+    const time = timestamp || new Date().toISOString();
+    return {
+      roomId: source.roomId || "",
+      roomNameSnapshot: source.roomNameSnapshot || "",
+      roomAccountSnapshot: source.roomAccountSnapshot || "",
+      days: clearContent ? {} : JSON.parse(JSON.stringify(source.days)),
+      createdAt: time,
+      updatedAt: time
+    };
+  }
+
   function migrateState(input) {
     if (!input || !Array.isArray(input.people) || !input.schedules || typeof input.schedules !== "object") {
       throw new Error("数据格式无效");
     }
-    if (input.version !== 1 && input.version !== 2) throw new Error("不支持的数据版本");
+    if (![1, 2, 3].includes(input.version)) throw new Error("不支持的数据版本");
     const output = JSON.parse(JSON.stringify(input));
-    output.version = 2;
     output.rooms = Array.isArray(output.rooms) ? output.rooms : [];
     output.settings = output.settings && typeof output.settings === "object" ? output.settings : {};
     output.people = output.people.map((person) => ({
       ...person,
       employmentType: person.employmentType === "partTime" ? "partTime" : "formal"
     }));
+    if (output.version === 3) {
+      output.version = 3;
+      return output;
+    }
+
     Object.values(output.schedules).forEach((week) => {
       Object.values(week || {}).forEach((day) => {
         if (!day || typeof day !== "object") return;
@@ -234,6 +282,37 @@
         });
       });
     });
+
+    const v3Schedules = {};
+    Object.entries(output.schedules).forEach(([weekKey, days]) => {
+      const roomIds = new Set();
+      let snapshotName = "";
+      let snapshotAccount = "";
+      Object.values(days || {}).forEach((day) => {
+        Object.entries(day || {}).forEach(([key, slot]) => {
+          if (key === "leavePeople" || !slot || typeof slot !== "object") return;
+          if ((slot.hostId || slot.coHostId) && slot.roomId) roomIds.add(slot.roomId);
+          if (!snapshotName && slot.roomNameSnapshot) snapshotName = slot.roomNameSnapshot;
+          if (!snapshotAccount && slot.roomAccountSnapshot) snapshotAccount = slot.roomAccountSnapshot;
+          delete slot.roomId;
+          delete slot.roomNameSnapshot;
+          delete slot.roomAccountSnapshot;
+        });
+      });
+      const roomKey = roomIds.size === 1 ? [...roomIds][0] : "unassigned";
+      const room = output.rooms.find((item) => item.id === roomKey);
+      if (!v3Schedules[roomKey]) v3Schedules[roomKey] = {};
+      v3Schedules[roomKey][weekKey] = {
+        roomId: roomKey === "unassigned" ? "" : roomKey,
+        roomNameSnapshot: room?.name || snapshotName || (roomKey === "unassigned" ? "未指定直播间" : "历史直播间"),
+        roomAccountSnapshot: room?.account || snapshotAccount || "",
+        days,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    });
+    output.version = 3;
+    output.schedules = v3Schedules;
     return output;
   }
 
@@ -250,6 +329,10 @@
     isOvertimeShift,
     calculateStatistics,
     findConflicts,
+    hasWeekContent,
+    historyRecords,
+    targetWeekAvailable,
+    copyWeekRecord,
     migrateState
   };
 });

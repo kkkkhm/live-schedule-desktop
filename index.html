@@ -39,6 +39,7 @@
 
     <nav class="tabs" aria-label="功能导航">
       <button class="tab active" data-tab="schedule">周排班</button>
+      <button class="tab" data-tab="history">历史记录</button>
       <button class="tab" data-tab="rooms">直播间管理</button>
       <button class="tab" data-tab="people">人员管理</button>
       <button class="tab" data-tab="stats">时长统计</button>
@@ -47,18 +48,38 @@
     <section id="schedulePanel" class="panel active" data-panel="schedule">
       <div class="panel-heading">
         <div>
-          <h2>周排班</h2>
-          <p>在每个班次中选择直播间、主播、副播和直播时间。加班时长单独统计。</p>
+          <div class="schedule-title-row">
+            <h2>周排班</h2>
+            <label class="room-scope-control"><span>直播间</span><select id="scheduleRoomSelect"><option value="">请选择直播间</option></select></label>
+          </div>
+          <p id="scheduleHint">请选择直播间，再为该直播间安排主播、副播和直播时间。</p>
         </div>
         <div class="legend">
           <span><i class="dot today"></i>今天</span>
           <span><i class="dot conflict"></i>排班冲突</span>
         </div>
       </div>
+      <div id="scheduleEmptyState" class="schedule-empty-state" hidden>请先在“直播间管理”中新建直播间，并在上方选择。</div>
       <div class="schedule-scroll">
         <table class="schedule-table">
           <thead id="scheduleHead"></thead>
           <tbody id="scheduleBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="historyPanel" class="panel" data-panel="history" hidden>
+      <div class="panel-heading">
+        <div>
+          <h2>近 3 个月排班历史</h2>
+          <p>查看历史周表，或完整复制到新的日期继续编辑。</p>
+        </div>
+        <label class="history-filter"><span>筛选直播间</span><select id="historyRoomFilter"><option value="">全部直播间</option></select></label>
+      </div>
+      <div class="people-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>直播间</th><th>周日期</th><th>直播场次</th><th>最后修改</th><th>操作</th></tr></thead>
+          <tbody id="historyTableBody"></tbody>
         </table>
       </div>
     </section>

@@ -75,15 +75,58 @@ test("warns when a person on leave is scheduled", () => {
   assert.equal(Logic.findConflicts(week, people).some((item) => item.type === "leave-scheduled"), true);
 });
 
-test("migrates V1 data without losing schedules", () => {
+test("migrates V1 data to unassigned V3 without losing schedules", () => {
   const v1 = { version: 1, people: [{ id: "a", name: "甲", active: true }], schedules: { "2026-10-05": { monday: { morning: { hostId: "a" } } } } };
   const result = Logic.migrateState(v1);
-  assert.equal(result.version, 2);
+  assert.equal(result.version, 3);
   assert.deepEqual(result.rooms, []);
   assert.equal(result.people[0].employmentType, "formal");
-  assert.deepEqual(result.schedules["2026-10-05"].monday.leavePeople, []);
-  assert.equal(result.schedules["2026-10-05"].monday.morning.hostId, "a");
-  assert.equal(result.schedules["2026-10-05"].monday.morning.roomId, "");
+  assert.deepEqual(result.schedules.unassigned["2026-10-05"].days.monday.leavePeople, []);
+  assert.equal(result.schedules.unassigned["2026-10-05"].days.monday.morning.hostId, "a");
+  assert.equal(result.schedules.unassigned["2026-10-05"].roomNameSnapshot, "未指定直播间");
+});
+
+test("migrates a single-room V2 week into that room", () => {
+  const v2 = { version: 2, rooms: [{ id: "r1", name: "一号间", account: "room-1", active: true }], people: [], schedules: {
+    "2026-10-05": { monday: { morning: { roomId: "r1", roomNameSnapshot: "一号间", roomAccountSnapshot: "room-1", hostId: "a", startTime: "08:00", endTime: "13:00" }, leavePeople: [] } }
+  } };
+  const result = Logic.migrateState(v2);
+  assert.equal(result.version, 3);
+  assert.equal(result.schedules.r1["2026-10-05"].roomId, "r1");
+  assert.equal(result.schedules.r1["2026-10-05"].days.monday.morning.roomId, undefined);
+});
+
+test("keeps mixed-room V2 weeks unassigned", () => {
+  const v2 = { version: 2, rooms: [], people: [], schedules: { "2026-10-05": { monday: {
+    morning: { roomId: "r1", hostId: "a" }, afternoon: { roomId: "r2", hostId: "b" }, leavePeople: []
+  } } } };
+  assert.ok(Logic.migrateState(v2).schedules.unassigned["2026-10-05"]);
+});
+
+test("returns only non-empty history from the last three months", () => {
+  const filled = { days: { monday: { morning: { hostId: "a", startTime: "08:00", endTime: "13:00" }, leavePeople: [] } } };
+  const state = { schedules: { r1: { "2026-10-05": filled, "2026-06-01": filled, "2026-10-12": { days: {} } } } };
+  const records = Logic.historyRecords(state, "2026-10-09");
+  assert.deepEqual(records.map((item) => item.weekKey), ["2026-10-05"]);
+});
+
+test("copies a historical week without sharing mutable data", () => {
+  const source = { roomId: "r1", roomNameSnapshot: "一号间", days: { monday: { morning: { hostId: "a", startTime: "08:00", endTime: "13:00" }, leavePeople: [] } } };
+  const copied = Logic.copyWeekRecord(source, false, "2026-10-09T00:00:00.000Z");
+  assert.equal(copied.days.monday.morning.hostId, "a");
+  copied.days.monday.morning.hostId = "b";
+  assert.equal(source.days.monday.morning.hostId, "a");
+});
+
+test("creates an empty week when clear content is selected", () => {
+  const source = { roomId: "r1", days: { monday: { morning: { hostId: "a" } } } };
+  assert.deepEqual(Logic.copyWeekRecord(source, true, "2026-10-09T00:00:00.000Z").days, {});
+});
+
+test("allows only empty copy targets", () => {
+  assert.equal(Logic.targetWeekAvailable(undefined), true);
+  assert.equal(Logic.targetWeekAvailable({ days: {} }), true);
+  assert.equal(Logic.targetWeekAvailable({ days: { monday: { leavePeople: [{ personId: "a" }] } } }), false);
 });
 
 console.log("All logic tests passed.");
