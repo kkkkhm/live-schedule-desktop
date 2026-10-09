@@ -77,10 +77,13 @@
         </div>
       </div>
       <details id="autoScheduler" class="auto-scheduler">
-        <summary>智能排班 · 四组固定班组模板</summary>
+        <summary>智能排班 · 四组正式班组＋固定兼职班组</summary>
         <div class="auto-scheduler-intro">
-          <p>先确定每日休假人员，再配置四组正式班组。系统会在所选区间逐日避开休假组，并提示需要补充的兼职与加班。</p>
-          <button id="generateScheduleBtn" class="button primary" type="button">生成区间排班</button>
+          <p>先确定每日休假人员，再配置四组正式班组和一组固定兼职班组。系统会自动补班并在两组场景写入加班时间。</p>
+          <div class="auto-scheduler-actions">
+            <button id="generateScheduleBtn" class="button primary" type="button">生成区间排班</button>
+            <button id="refreshGuidanceBtn" class="button ghost" type="button">刷新排班提示</button>
+          </div>
         </div>
         <div id="groupTemplateGrid" class="group-template-grid"></div>
         <p id="autoScheduleStatus" class="auto-schedule-status" role="status"></p>

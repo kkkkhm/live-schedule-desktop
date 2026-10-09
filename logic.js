@@ -233,23 +233,27 @@
       (slot.hostId || slot.coHostId || slot.note || slot.overtimeStartTime || slot.overtimeEndTime || (slot.startTime && slot.endTime && isOvertimeShift(key))));
   }
 
-  function planDayFromTemplates(templates, leavePersonIds) {
+  function planDayFromTemplates(templates, leavePersonIds, partTimeGroup) {
     const leave = new Set(leavePersonIds || []);
     const active = (templates || []).filter((group) => group && group.hostId && group.coHostId && !leave.has(group.hostId) && !leave.has(group.coHostId)).map((group) => ({ ...group }));
     const mainKeys = ["morning", "afternoon", "evening"];
     const formalGroupCount = active.length;
-    const assignments = active.map((group) => ({ ...group }));
+    let assignments = active.map((group) => ({ ...group, groupType: "formal" }));
     let scenario = formalGroupCount >= 4 ? "four" : formalGroupCount === 3 ? "three" : formalGroupCount === 2 ? "two" : "critical";
     let needsPartTime = formalGroupCount === 2 || formalGroupCount === 3;
-    const requiredOvertimeGroupIds = formalGroupCount === 2 ? active.map((group) => group.id) : [];
+    const partTimeReady = Boolean(partTimeGroup?.hostId && partTimeGroup?.coHostId);
+    const partTimeConflict = needsPartTime && partTimeReady && (leave.has(partTimeGroup.hostId) || leave.has(partTimeGroup.coHostId));
+    const canUsePartTime = needsPartTime && partTimeReady && !partTimeConflict;
+    let requiredOvertimeGroupIds = [];
+    if (formalGroupCount === 3 && canUsePartTime) {
+      const occupied = new Set(assignments.map((group) => group.shiftKey));
+      const missing = [...mainKeys, "secondary"].find((key) => !occupied.has(key));
+      if (missing) assignments.push({ ...partTimeGroup, id: partTimeGroup.id || "part-time-group", groupType: "partTime", shiftKey: missing });
+    }
     if (formalGroupCount === 2) {
-      const occupiedMain = new Set(assignments.filter((group) => mainKeys.includes(group.shiftKey)).map((group) => group.shiftKey));
-      const missingMain = mainKeys.filter((key) => !occupiedMain.has(key));
-      const secondary = assignments.find((group) => group.shiftKey === "secondary");
-      if (secondary && missingMain.length) {
-        secondary.movedFromShiftKey = "secondary";
-        secondary.shiftKey = missingMain[0];
-      }
+      assignments = active.map((group, index) => ({ ...group, groupType: "formal", movedFromShiftKey: group.shiftKey, shiftKey: index === 0 ? "morning" : "afternoon", overtimeStartTime: index === 0 ? "12:30" : "17:30", overtimeEndTime: index === 0 ? "14:00" : "19:00" }));
+      requiredOvertimeGroupIds = active.map((group) => group.id);
+      if (canUsePartTime) assignments.push({ ...partTimeGroup, id: partTimeGroup.id || "part-time-group", groupType: "partTime", shiftKey: "evening" });
     }
     const occupied = new Set(assignments.map((group) => group.shiftKey));
     const targetKeys = formalGroupCount === 2 ? mainKeys : [...mainKeys, "secondary"];
@@ -259,7 +263,8 @@
       assignments,
       missingShiftKeys: targetKeys.filter((key) => !occupied.has(key)),
       needsPartTime,
-      requiredOvertimeGroupIds
+      requiredOvertimeGroupIds,
+      partTimeConflict
     };
   }
 

@@ -64,13 +64,29 @@ test("plans four, three and two-group days from leave conflicts", () => {
     { id: "g4", hostId: "h4", coHostId: "c4", shiftKey: "secondary" }
   ];
   assert.equal(Logic.planDayFromTemplates(templates, []).scenario, "four");
-  const three = Logic.planDayFromTemplates(templates, ["h1"]);
-  assert.deepEqual([three.scenario, three.needsPartTime, three.missingShiftKeys], ["three", true, ["morning"]]);
-  const two = Logic.planDayFromTemplates(templates, ["h1", "h2"]);
+  const partTime = { id: "pt", hostId: "ph", coHostId: "pc" };
+  const three = Logic.planDayFromTemplates(templates, ["h1"], partTime);
+  assert.deepEqual([three.scenario, three.needsPartTime, three.missingShiftKeys], ["three", true, []]);
+  assert.equal(three.assignments.find((item) => item.groupType === "partTime").shiftKey, "morning");
+  const two = Logic.planDayFromTemplates(templates, ["h1", "h2"], partTime);
   assert.equal(two.scenario, "two");
-  assert.equal(two.assignments.some((item) => item.movedFromShiftKey === "secondary" && item.shiftKey === "morning"), true);
-  assert.equal(two.missingShiftKeys.length, 1);
+  assert.deepEqual(two.assignments.map((item) => item.shiftKey), ["morning", "afternoon", "evening"]);
+  assert.deepEqual(two.assignments.slice(0, 2).map((item) => [item.overtimeStartTime, item.overtimeEndTime]), [["12:30", "14:00"], ["17:30", "19:00"]]);
+  assert.equal(two.missingShiftKeys.length, 0);
   assert.deepEqual(two.requiredOvertimeGroupIds.sort(), ["g3", "g4"]);
+});
+
+test("does not use the fixed part-time group when either member is on leave", () => {
+  const templates = [
+    { id: "g1", hostId: "h1", coHostId: "c1", shiftKey: "morning" },
+    { id: "g2", hostId: "h2", coHostId: "c2", shiftKey: "afternoon" },
+    { id: "g3", hostId: "h3", coHostId: "c3", shiftKey: "evening" },
+    { id: "g4", hostId: "h4", coHostId: "c4", shiftKey: "secondary" }
+  ];
+  const plan = Logic.planDayFromTemplates(templates, ["h1", "ph"], { id: "pt", hostId: "ph", coHostId: "pc" });
+  assert.equal(plan.partTimeConflict, true);
+  assert.equal(plan.assignments.some((item) => item.groupType === "partTime"), false);
+  assert.deepEqual(plan.missingShiftKeys, ["morning"]);
 });
 
 test("detects overlapping assignments", () => {

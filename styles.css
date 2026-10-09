@@ -127,9 +127,13 @@ main { padding: 24px 36px 48px; }
 .auto-scheduler > summary { cursor: pointer; padding: 13px 15px; color: #173f7b; font-weight: 700; }
 .auto-scheduler-intro { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 15px 12px; }
 .auto-scheduler-intro p { margin: 0; color: var(--muted); font-size: 12px; }
-.group-template-grid { display: grid; grid-template-columns: repeat(4, minmax(210px, 1fr)); gap: 10px; padding: 0 15px 12px; overflow-x: auto; }
+.auto-scheduler-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.auto-scheduler-actions .button.ghost { background: white; }
+.group-template-grid { display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); gap: 10px; padding: 0 15px 12px; overflow-x: auto; }
 .group-template-card { min-width: 210px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white; }
 .group-template-card h3 { margin: 0 0 9px; font-size: 14px; }
+.group-template-card.part-time-template { border-color: #e2bd6d; background: #fffaf0; }
+.group-template-card.part-time-template p { min-height: 32px; margin: 0 0 8px; color: #85530d; font-size: 11px; line-height: 1.45; }
 .template-field { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 6px; margin: 6px 0; color: var(--muted); font-size: 11px; }
 .template-field select, .template-field input { min-width: 0; width: 100%; padding: 5px; border: 1px solid var(--border); border-radius: 5px; background: white; }
 .template-time > div { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 3px; }
