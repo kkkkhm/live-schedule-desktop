@@ -83,6 +83,9 @@ main { padding: 24px 36px 48px; }
 .schedule-title-row h2 { margin: 0; }
 .room-scope-control, .history-filter { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .room-scope-control select, .history-filter select { min-width: 210px; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 6px; background: white; color: var(--text); }
+.history-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 14px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 8px; }
+.history-toolbar label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 12px; }
+.history-toolbar input, .history-toolbar select { min-width: 180px; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 6px; background: white; }
 .schedule-empty-state { margin-bottom: 12px; padding: 12px 14px; border: 1px solid #e4c788; border-radius: 8px; background: #fff8e8; color: #7a5716; }
 .schedule-scroll.is-disabled { opacity: .5; pointer-events: none; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
@@ -145,6 +148,7 @@ main { padding: 24px 36px 48px; }
 .leave-picker[open] summary { border-color: var(--primary); color: var(--primary); }
 .leave-options { margin-top: 6px; max-height: 170px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: white; box-shadow: 0 8px 20px rgba(38,57,89,.12); }
 .leave-options label { display: flex; align-items: center; gap: 6px; padding: 4px 2px; font-size: 12px; }
+.leave-note { width: 100%; margin-top: 7px; padding: 6px 7px; border: 1px solid var(--border); border-radius: 5px; font-size: 11px; }
 
 .stats-cards { display: flex; gap: 10px; }
 .stats-cards div { min-width: 112px; padding: 10px 14px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 8px; }

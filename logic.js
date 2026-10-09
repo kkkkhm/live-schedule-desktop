@@ -209,14 +209,26 @@
     return conflicts;
   }
 
+  function hasDayContent(day) {
+    if (!day || typeof day !== "object") return false;
+    if ((Array.isArray(day.leavePeople) && day.leavePeople.length) || day.leaveNote) return true;
+    return Object.entries(day).some(([key, slot]) => !["leavePeople", "leaveNote", "updatedAt"].includes(key) && slot && typeof slot === "object" &&
+      (slot.hostId || slot.coHostId || slot.note || (slot.startTime && slot.endTime && isOvertimeShift(key))));
+  }
+
   function hasWeekContent(weekRecord) {
     const days = weekRecord?.days || weekRecord || {};
-    return Object.values(days).some((day) => {
-      if (!day || typeof day !== "object") return false;
-      if (Array.isArray(day.leavePeople) && day.leavePeople.length) return true;
-      return Object.entries(day).some(([key, slot]) => key !== "leavePeople" && slot && typeof slot === "object" &&
-        (slot.hostId || slot.coHostId || slot.note || (slot.startTime && slot.endTime && isOvertimeShift(key))));
-    });
+    return Object.values(days).some(hasDayContent);
+  }
+
+  function dateRange(startValue, endValue, maxDays = 14) {
+    const start = startValue instanceof Date ? startValue : parseLocalDate(startValue);
+    const end = endValue instanceof Date ? endValue : parseLocalDate(endValue);
+    if (!start || !end) throw new Error("请选择开始日期和结束日期");
+    const count = Math.round((end - start) / DAY_MS) + 1;
+    if (count < 1) throw new Error("结束日期不能早于开始日期");
+    if (count > maxDays) throw new Error(`日期区间最多支持${maxDays}天`);
+    return Array.from({ length: count }, (_, index) => addDays(start, index));
   }
 
   function historyRecords(state, todayValue) {
@@ -224,16 +236,14 @@
     if (!today || Number.isNaN(today.getTime())) return [];
     const threshold = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
     const records = [];
-    Object.entries(state?.schedules || {}).forEach(([roomKey, weeks]) => {
-      Object.entries(weeks || {}).forEach(([weekKey, week]) => {
-        const monday = parseLocalDate(weekKey);
-        if (!monday) return;
-        const sunday = addDays(monday, 6);
-        if (sunday < threshold || monday > today || !hasWeekContent(week)) return;
-        records.push({ roomKey, weekKey, week });
+    Object.entries(state?.schedules || {}).forEach(([roomKey, roomSchedule]) => {
+      Object.entries(roomSchedule?.days || {}).forEach(([dateKey, day]) => {
+        const date = parseLocalDate(dateKey);
+        if (!date || date < threshold || date > today || !hasDayContent(day)) return;
+        records.push({ roomKey, dateKey, day, roomSchedule });
       });
     });
-    return records.sort((a, b) => b.weekKey.localeCompare(a.weekKey) || a.roomKey.localeCompare(b.roomKey));
+    return records.sort((a, b) => b.dateKey.localeCompare(a.dateKey) || a.roomKey.localeCompare(b.roomKey));
   }
 
   function targetWeekAvailable(existing) {
@@ -257,7 +267,7 @@
     if (!input || !Array.isArray(input.people) || !input.schedules || typeof input.schedules !== "object") {
       throw new Error("数据格式无效");
     }
-    if (![1, 2, 3].includes(input.version)) throw new Error("不支持的数据版本");
+    if (![1, 2, 3, 4].includes(input.version)) throw new Error("不支持的数据版本");
     const output = JSON.parse(JSON.stringify(input));
     output.rooms = Array.isArray(output.rooms) ? output.rooms : [];
     output.settings = output.settings && typeof output.settings === "object" ? output.settings : {};
@@ -265,12 +275,15 @@
       ...person,
       employmentType: person.employmentType === "partTime" ? "partTime" : "formal"
     }));
-    if (output.version === 3) {
-      output.version = 3;
+    if (output.version === 4) {
+      Object.values(output.schedules).forEach((roomSchedule) => Object.values(roomSchedule?.days || {}).forEach((day) => {
+        day.leavePeople = Array.isArray(day.leavePeople) ? day.leavePeople : [];
+        day.leaveNote = day.leaveNote || "";
+      }));
       return output;
     }
 
-    Object.values(output.schedules).forEach((week) => {
+    if (output.version < 3) Object.values(output.schedules).forEach((week) => {
       Object.values(week || {}).forEach((day) => {
         if (!day || typeof day !== "object") return;
         day.leavePeople = Array.isArray(day.leavePeople) ? day.leavePeople : [];
@@ -283,8 +296,9 @@
       });
     });
 
-    const v3Schedules = {};
-    Object.entries(output.schedules).forEach(([weekKey, days]) => {
+    if (output.version < 3) {
+      const v3Schedules = {};
+      Object.entries(output.schedules).forEach(([weekKey, days]) => {
       const roomIds = new Set();
       let snapshotName = "";
       let snapshotAccount = "";
@@ -310,9 +324,36 @@
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      });
+      output.version = 3;
+      output.schedules = v3Schedules;
+    }
+
+    const weekdayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    const v4Schedules = {};
+    Object.entries(output.schedules).forEach(([roomKey, weeks]) => {
+      const firstRecord = Object.values(weeks || {})[0] || {};
+      v4Schedules[roomKey] = {
+        roomId: firstRecord.roomId || (roomKey === "unassigned" ? "" : roomKey),
+        roomNameSnapshot: firstRecord.roomNameSnapshot || (roomKey === "unassigned" ? "未指定直播间" : "历史直播间"),
+        roomAccountSnapshot: firstRecord.roomAccountSnapshot || "",
+        days: {}
+      };
+      Object.entries(weeks || {}).forEach(([weekKey, record]) => {
+        const monday = parseLocalDate(weekKey);
+        if (!monday || !record?.days) return;
+        weekdayKeys.forEach((dayKey, index) => {
+          const day = record.days[dayKey];
+          if (!day) return;
+          const dateKey = toIsoDate(addDays(monday, index));
+          const migratedDay = { ...day, leavePeople: Array.isArray(day.leavePeople) ? day.leavePeople : [], leaveNote: day.leaveNote || "", updatedAt: record.updatedAt || new Date().toISOString() };
+          const existing = v4Schedules[roomKey].days[dateKey];
+          if (!existing || !hasDayContent(existing) || String(migratedDay.updatedAt) >= String(existing.updatedAt || "")) v4Schedules[roomKey].days[dateKey] = migratedDay;
+        });
+      });
     });
-    output.version = 3;
-    output.schedules = v3Schedules;
+    output.version = 4;
+    output.schedules = v4Schedules;
     return output;
   }
 
@@ -329,7 +370,9 @@
     isOvertimeShift,
     calculateStatistics,
     findConflicts,
+    hasDayContent,
     hasWeekContent,
+    dateRange,
     historyRecords,
     targetWeekAvailable,
     copyWeekRecord,

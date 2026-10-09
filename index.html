@@ -11,7 +11,7 @@
     <div>
       <p class="eyebrow">本地排班工具</p>
       <h1>直播周排班</h1>
-      <p class="subtitle">周一至周日排班、直播间与人员管理、直播时长统计</p>
+      <p class="subtitle">灵活日期区间排班、直播间与人员管理、直播时长统计</p>
     </div>
     <div class="header-actions" aria-label="数据操作">
       <button id="exportJsonBtn" class="button secondary">导出备份</button>
@@ -23,14 +23,18 @@
   </header>
 
   <main>
-    <section class="week-toolbar" aria-label="周选择">
-      <button id="previousWeekBtn" class="icon-button" aria-label="上一周">‹</button>
+    <section class="week-toolbar" aria-label="日期区间选择">
+      <button id="previousWeekBtn" class="icon-button" aria-label="上一区间">‹</button>
       <label class="date-control">
-        <span>选择日期</span>
-        <input id="weekDateInput" type="date">
+        <span>开始日期</span>
+        <input id="rangeStartInput" type="date">
       </label>
-      <button id="todayWeekBtn" class="button secondary">回到本周</button>
-      <button id="nextWeekBtn" class="icon-button" aria-label="下一周">›</button>
+      <label class="date-control">
+        <span>结束日期</span>
+        <input id="rangeEndInput" type="date">
+      </label>
+      <button id="todayWeekBtn" class="button secondary">回到本期</button>
+      <button id="nextWeekBtn" class="icon-button" aria-label="下一区间">›</button>
       <div class="week-summary">
         <strong id="weekRangeLabel"></strong>
         <span id="saveStatus" role="status">已自动保存</span>
@@ -71,15 +75,21 @@
     <section id="historyPanel" class="panel" data-panel="history" hidden>
       <div class="panel-heading">
         <div>
-          <h2>近 3 个月排班历史</h2>
-          <p>查看历史周表，或完整复制到新的日期继续编辑。</p>
+          <h2>历史记录与近三月总览</h2>
+          <p>选择任意 1–14 天区间直接调出排班；总览会读取近三个月的最新数据。</p>
         </div>
-        <label class="history-filter"><span>筛选直播间</span><select id="historyRoomFilter"><option value="">全部直播间</option></select></label>
+        <button id="refreshOverviewBtn" class="button primary" type="button">更新近三月总览排班表</button>
+      </div>
+      <div class="history-toolbar">
+        <label><span>开始日期</span><input id="historyStartInput" type="date"></label>
+        <label><span>结束日期</span><input id="historyEndInput" type="date"></label>
+        <label><span>直播间</span><select id="historyRoomFilter"><option value="">请选择直播间</option></select></label>
+        <button id="openHistoryRangeBtn" class="button primary" type="button">打开此区间</button>
       </div>
       <div class="people-table-wrap">
         <table class="data-table">
-          <thead><tr><th>直播间</th><th>周日期</th><th>直播场次</th><th>最后修改</th><th>操作</th></tr></thead>
-          <tbody id="historyTableBody"></tbody>
+          <thead><tr><th>日期</th><th>直播间</th><th>班次</th><th>主播</th><th>副播</th><th>时间</th><th>正常时长</th><th>加班时长</th><th>休假人员</th><th>休假备注</th></tr></thead>
+          <tbody id="overviewTableBody"></tbody>
         </table>
       </div>
     </section>
