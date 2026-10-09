@@ -11,7 +11,7 @@
     <div>
       <p class="eyebrow">本地排班工具</p>
       <h1>直播周排班</h1>
-      <p class="subtitle">周一至周日排班、人员管理与直播时长统计</p>
+      <p class="subtitle">周一至周日排班、直播间与人员管理、直播时长统计</p>
     </div>
     <div class="header-actions" aria-label="数据操作">
       <button id="exportJsonBtn" class="button secondary">导出备份</button>
@@ -39,6 +39,7 @@
 
     <nav class="tabs" aria-label="功能导航">
       <button class="tab active" data-tab="schedule">周排班</button>
+      <button class="tab" data-tab="rooms">直播间管理</button>
       <button class="tab" data-tab="people">人员管理</button>
       <button class="tab" data-tab="stats">时长统计</button>
     </nav>
@@ -47,7 +48,7 @@
       <div class="panel-heading">
         <div>
           <h2>周排班</h2>
-          <p>在每个班次中选择主播、副播和直播时间。修改后自动保存。</p>
+          <p>在每个班次中选择直播间、主播、副播和直播时间。加班时长单独统计。</p>
         </div>
         <div class="legend">
           <span><i class="dot today"></i>今天</span>
@@ -58,6 +59,31 @@
         <table class="schedule-table">
           <thead id="scheduleHead"></thead>
           <tbody id="scheduleBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="roomsPanel" class="panel" data-panel="rooms" hidden>
+      <div class="panel-heading">
+        <div>
+          <h2>直播间管理</h2>
+          <p>停用或删除后不再出现在新排班中，历史排班快照仍会保留。</p>
+        </div>
+      </div>
+      <form id="roomForm" class="management-form">
+        <input id="roomIdInput" type="hidden">
+        <label><span>直播间名称</span><input id="roomNameInput" type="text" maxlength="30" required placeholder="输入直播间名称"></label>
+        <label><span>账号</span><input id="roomAccountInput" type="text" maxlength="50" required placeholder="输入直播间账号"></label>
+        <div class="form-actions">
+          <button id="saveRoomBtn" class="button primary" type="submit">新增直播间</button>
+          <button id="cancelRoomEditBtn" class="button ghost" type="button" hidden>取消编辑</button>
+        </div>
+        <p id="roomFormError" class="form-error" role="alert"></p>
+      </form>
+      <div class="people-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>直播间名称</th><th>账号</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="roomsTableBody"></tbody>
         </table>
       </div>
     </section>
@@ -80,6 +106,10 @@
           <label class="check-label"><input id="canHostInput" type="checkbox"> 主播</label>
           <label class="check-label"><input id="canCoHostInput" type="checkbox"> 副播</label>
         </fieldset>
+        <label>
+          <span>用工类型</span>
+          <select id="employmentTypeInput"><option value="formal">正式员工</option><option value="partTime">兼职</option></select>
+        </label>
         <div class="form-actions">
           <button id="savePersonBtn" class="button primary" type="submit">新增人员</button>
           <button id="cancelPersonEditBtn" class="button ghost" type="button" hidden>取消编辑</button>
@@ -88,7 +118,7 @@
       </form>
       <div class="people-table-wrap">
         <table class="data-table">
-          <thead><tr><th>姓名</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
+          <thead><tr><th>姓名</th><th>角色</th><th>用工类型</th><th>状态</th><th>操作</th></tr></thead>
           <tbody id="peopleTableBody"></tbody>
         </table>
       </div>
@@ -108,7 +138,7 @@
       <div class="stats-layout">
         <div class="people-table-wrap">
           <table class="data-table">
-            <thead><tr><th>人员</th><th>主播时长</th><th>副播时长</th><th>总时长</th></tr></thead>
+            <thead><tr><th>人员</th><th>直播时长</th><th>加班时长</th><th>总时长</th></tr></thead>
             <tbody id="statsTableBody"></tbody>
           </table>
         </div>

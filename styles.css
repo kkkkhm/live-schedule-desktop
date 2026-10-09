@@ -94,7 +94,9 @@ main { padding: 24px 36px 48px; }
 .day-name { display: block; font-weight: 700; }
 .day-date { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
 .shift-label { width: 88px; padding: 18px 8px; text-align: center; vertical-align: middle !important; background: #f7f9fc; font-weight: 700; }
+.shift-label.overtime { background: #fff1cf; color: #85530d; }
 .schedule-cell { min-height: 178px; padding: 9px; background: white; }
+.schedule-cell.overtime-cell { background: #fffcf4; }
 .schedule-cell.has-conflict { background: var(--danger-soft); box-shadow: inset 0 0 0 2px #e69292; }
 .schedule-cell.has-error { background: #fff8e9; box-shadow: inset 0 0 0 2px #e5bd68; }
 .field-row { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 6px; margin-bottom: 6px; }
@@ -106,11 +108,12 @@ main { padding: 24px 36px 48px; }
 .duration strong { color: var(--primary); }
 .note-input { width: 100%; margin-top: 6px; border: 1px solid var(--border); border-radius: 5px; padding: 5px 6px; font-size: 11px; }
 
-.person-form { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto; align-items: end; gap: 18px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 9px; }
-.person-form > label { display: flex; flex-direction: column; gap: 6px; }
-.person-form input[type="text"] { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 6px; }
+.person-form, .management-form { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr) minmax(150px, .55fr) auto; align-items: end; gap: 18px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 9px; }
+.management-form { grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto; }
+.person-form > label, .management-form > label { display: flex; flex-direction: column; gap: 6px; }
+.person-form input[type="text"], .management-form input[type="text"], .person-form select { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: white; }
 .person-form fieldset { display: flex; align-items: center; gap: 16px; min-height: 58px; border: 1px solid var(--border); border-radius: 7px; }
-.person-form legend, .person-form > label > span { font-size: 12px; color: var(--muted); }
+.person-form legend, .person-form > label > span, .management-form > label > span { font-size: 12px; color: var(--muted); }
 .check-label { display: inline-flex; align-items: center; gap: 5px; }
 .form-actions { display: flex; gap: 8px; }
 .form-error { grid-column: 1 / -1; min-height: 18px; margin: -6px 0 0; color: var(--danger); font-size: 12px; }
@@ -123,6 +126,16 @@ main { padding: 24px 36px 48px; }
 .status-badge { display: inline-block; border-radius: 999px; padding: 3px 8px; font-size: 11px; background: #e7f5ef; color: var(--success); }
 .status-badge.inactive { background: #eef0f4; color: var(--muted); }
 .row-actions { display: flex; gap: 7px; }
+
+.leave-label { background: #e8f5ee; color: #276448; }
+.leave-cell { padding: 10px; background: #f6fcf8; vertical-align: top; }
+.leave-cell.has-conflict { background: var(--danger-soft); box-shadow: inset 0 0 0 2px #e69292; }
+.leave-picker { position: relative; }
+.leave-picker summary { list-style: none; cursor: pointer; min-height: 32px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--muted); font-size: 12px; }
+.leave-picker summary::-webkit-details-marker { display: none; }
+.leave-picker[open] summary { border-color: var(--primary); color: var(--primary); }
+.leave-options { margin-top: 6px; max-height: 170px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: white; box-shadow: 0 8px 20px rgba(38,57,89,.12); }
+.leave-options label { display: flex; align-items: center; gap: 6px; padding: 4px 2px; font-size: 12px; }
 
 .stats-cards { display: flex; gap: 10px; }
 .stats-cards div { min-width: 112px; padding: 10px 14px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 8px; }

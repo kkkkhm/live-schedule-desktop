@@ -80,6 +80,10 @@
     return person ? person.name : (snapshot || "未知人员");
   }
 
+  function isOvertimeShift(shiftKey) {
+    return /^overtime/.test(shiftKey || "");
+  }
+
   function collectWeekEntries(week, people) {
     const entries = [];
     Object.entries(week || {}).forEach(([dayKey, shifts]) => {
@@ -89,6 +93,7 @@
         entries.push({
           dayKey,
           shiftKey,
+          isOvertime: isOvertimeShift(shiftKey),
           slot,
           hours,
           interval: intervalForSlot(slot),
@@ -105,24 +110,23 @@
     people.forEach((person) => rows.set(person.id, {
       id: person.id,
       name: person.name,
-      hostHours: 0,
-      coHostHours: 0,
+      liveHours: 0,
+      overtimeHours: 0,
       totalHours: 0
     }));
 
     const entries = collectWeekEntries(week, people);
-    entries.forEach(({ slot, hours }) => {
+    entries.forEach(({ slot, hours, isOvertime }) => {
       if (!hours) return;
-      if (slot.hostId) {
-        if (!rows.has(slot.hostId)) rows.set(slot.hostId, { id: slot.hostId, name: slot.hostNameSnapshot || "未知人员", hostHours: 0, coHostHours: 0, totalHours: 0 });
-        rows.get(slot.hostId).hostHours += hours;
-        rows.get(slot.hostId).totalHours += hours;
-      }
-      if (slot.coHostId) {
-        if (!rows.has(slot.coHostId)) rows.set(slot.coHostId, { id: slot.coHostId, name: slot.coHostNameSnapshot || "未知人员", hostHours: 0, coHostHours: 0, totalHours: 0 });
-        rows.get(slot.coHostId).coHostHours += hours;
-        rows.get(slot.coHostId).totalHours += hours;
-      }
+      const assignedPeople = [...new Set([slot.hostId, slot.coHostId].filter(Boolean))];
+      assignedPeople.forEach((personId) => {
+        const snapshot = personId === slot.hostId ? slot.hostNameSnapshot : slot.coHostNameSnapshot;
+        if (!rows.has(personId)) rows.set(personId, { id: personId, name: snapshot || "未知人员", liveHours: 0, overtimeHours: 0, totalHours: 0 });
+        const row = rows.get(personId);
+        if (isOvertime) row.overtimeHours += hours;
+        else row.liveHours += hours;
+        row.totalHours += hours;
+      });
     });
 
     return {
@@ -184,7 +188,53 @@
       }
     });
 
+    Object.entries(week || {}).forEach(([dayKey, day]) => {
+      const leavePeople = Array.isArray(day?.leavePeople) ? day.leavePeople : [];
+      leavePeople.forEach((leave) => {
+        const scheduledShifts = entries
+          .filter((entry) => entry.dayKey === dayKey && (entry.slot.hostId === leave.personId || entry.slot.coHostId === leave.personId))
+          .map((entry) => entry.shiftKey);
+        if (scheduledShifts.length) {
+          conflicts.push({
+            type: "leave-scheduled",
+            dayKey,
+            shifts: [...new Set(scheduledShifts)],
+            personId: leave.personId,
+            personName: getPersonName(leave.personId, people, leave.personNameSnapshot)
+          });
+        }
+      });
+    });
+
     return conflicts;
+  }
+
+  function migrateState(input) {
+    if (!input || !Array.isArray(input.people) || !input.schedules || typeof input.schedules !== "object") {
+      throw new Error("数据格式无效");
+    }
+    if (input.version !== 1 && input.version !== 2) throw new Error("不支持的数据版本");
+    const output = JSON.parse(JSON.stringify(input));
+    output.version = 2;
+    output.rooms = Array.isArray(output.rooms) ? output.rooms : [];
+    output.settings = output.settings && typeof output.settings === "object" ? output.settings : {};
+    output.people = output.people.map((person) => ({
+      ...person,
+      employmentType: person.employmentType === "partTime" ? "partTime" : "formal"
+    }));
+    Object.values(output.schedules).forEach((week) => {
+      Object.values(week || {}).forEach((day) => {
+        if (!day || typeof day !== "object") return;
+        day.leavePeople = Array.isArray(day.leavePeople) ? day.leavePeople : [];
+        Object.entries(day).forEach(([key, slot]) => {
+          if (key === "leavePeople" || !slot || typeof slot !== "object" || Array.isArray(slot)) return;
+          slot.roomId = slot.roomId || "";
+          slot.roomNameSnapshot = slot.roomNameSnapshot || "";
+          slot.roomAccountSnapshot = slot.roomAccountSnapshot || "";
+        });
+      });
+    });
+    return output;
   }
 
   return {
@@ -197,7 +247,9 @@
     timeToMinutes,
     durationHours,
     intervalsOverlap,
+    isOvertimeShift,
     calculateStatistics,
-    findConflicts
+    findConflicts,
+    migrateState
   };
 });
