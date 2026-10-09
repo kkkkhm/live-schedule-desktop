@@ -8,11 +8,11 @@
   const weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   const shifts = [
-    { key: "morning", label: "早班", startTime: "08:00", endTime: "13:00", isOvertime: false },
+    { key: "morning", label: "早班", startTime: "08:00", endTime: "12:30", isOvertime: false },
     { key: "overtimeMorning", label: "加班", startTime: "", endTime: "", isOvertime: true },
-    { key: "afternoon", label: "中班", startTime: "13:00", endTime: "18:00", isOvertime: false },
+    { key: "afternoon", label: "中班", startTime: "13:00", endTime: "17:30", isOvertime: false },
     { key: "overtimeAfternoon", label: "加班", startTime: "", endTime: "", isOvertime: true },
-    { key: "evening", label: "晚班", startTime: "18:30", endTime: "23:30", isOvertime: false },
+    { key: "evening", label: "晚班", startTime: "19:00", endTime: "23:30", isOvertime: false },
     { key: "overtimeEvening", label: "加班", startTime: "", endTime: "", isOvertime: true }
   ];
   const defaultPeople = [
@@ -52,16 +52,25 @@
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function nowIso() { return new Date().toISOString(); }
   function emptyState() { return { version: VERSION, people: clone(defaultPeople), rooms: [], schedules: {}, settings: {} }; }
+  function normalizeLegacyBlankTimes(targetState) {
+    let changed = false;
+    const replacements = { morning: ["08:00", "13:00", "08:00", "12:30"], afternoon: ["13:00", "18:00", "13:00", "17:30"], evening: ["18:30", "23:30", "19:00", "23:30"] };
+    Object.values(targetState.schedules || {}).forEach((weeks) => Object.values(weeks || {}).forEach((record) => Object.values(record.days || {}).forEach((day) => {
+      Object.entries(replacements).forEach(([key, times]) => { const slot = day?.[key]; if (slot && !slot.hostId && !slot.coHostId && !slot.note && slot.startTime === times[0] && slot.endTime === times[1]) { slot.startTime = times[2]; slot.endTime = times[3]; changed = true; } });
+    })));
+    return changed;
+  }
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return emptyState();
       const parsed = JSON.parse(raw);
       const migrated = Logic.migrateState(parsed);
+      const normalized = normalizeLegacyBlankTimes(migrated);
       if (parsed.version !== VERSION) {
         if (!localStorage.getItem(PRE_V3_BACKUP_KEY)) localStorage.setItem(PRE_V3_BACKUP_KEY, raw);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
       }
+      if (parsed.version !== VERSION || normalized) localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
       return migrated;
     } catch (error) {
       setTimeout(() => showToast("本地数据读取或升级失败，原备份未被覆盖。", true), 0);
@@ -131,6 +140,15 @@
   function getSlot(dayKey, shift, create = true) {
     const day = getDay(dayKey, create); if (!day) return blankSlot(shift);
     if (!day[shift.key] && create) day[shift.key] = blankSlot(shift);
+    const slot = day[shift.key];
+    if (slot && !slot.hostId && !slot.coHostId && !slot.note && !shift.isOvertime) {
+      const legacyDefaults = { morning: ["08:00", "13:00"], afternoon: ["13:00", "18:00"], evening: ["18:30", "23:30"] };
+      const legacy = legacyDefaults[shift.key];
+      if (legacy && slot.startTime === legacy[0] && slot.endTime === legacy[1]) {
+        slot.startTime = shift.startTime;
+        slot.endTime = shift.endTime;
+      }
+    }
     return day[shift.key] || blankSlot(shift);
   }
   function touchWeek() { const record = getWeekRecord(false); if (record) record.updatedAt = nowIso(); }
