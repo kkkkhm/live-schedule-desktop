@@ -89,6 +89,20 @@ test("does not use the fixed part-time group when either member is on leave", ()
   assert.deepEqual(plan.missingShiftKeys, ["morning"]);
 });
 
+test("re-evaluates guidance from the current schedule instead of stale generation metadata", () => {
+  const day = {
+    leavePeople: [{ personId: "old-part-time" }],
+    autoSchedule: { scenario: "three", partTimeConflict: true },
+    morning: { hostId: "h1", coHostId: "c1", startTime: "08:00", endTime: "12:30" },
+    afternoon: { hostId: "h2", coHostId: "c2", startTime: "13:00", endTime: "17:30" },
+    evening: { hostId: "h3", coHostId: "c3", startTime: "19:00", endTime: "23:30" },
+    secondary: { hostId: "replacement-host", coHostId: "replacement-cohost", startTime: "13:30", endTime: "18:00" }
+  };
+  const result = Logic.evaluateDaySchedule(day);
+  assert.equal(result.completeCount, 4);
+  assert.equal(result.hasLeaveConflict, false);
+});
+
 test("detects overlapping assignments", () => {
   const people = [{ id: "a", name: "甲" }, { id: "b", name: "乙" }, { id: "c", name: "丙" }];
   const week = { monday: {

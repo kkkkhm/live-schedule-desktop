@@ -268,6 +268,20 @@
     };
   }
 
+  function evaluateDaySchedule(day, shiftKeys = ["morning", "afternoon", "evening", "secondary"]) {
+    const record = day && typeof day === "object" ? day : {};
+    const isComplete = (slot) => Boolean(slot?.hostId && slot?.coHostId && durationHours(slot.startTime, slot.endTime));
+    const completeKeys = shiftKeys.filter((key) => isComplete(record[key]));
+    const leaveIds = new Set((record.leavePeople || []).map((item) => item.personId));
+    const leaveConflictKeys = completeKeys.filter((key) => leaveIds.has(record[key].hostId) || leaveIds.has(record[key].coHostId));
+    const mainReady = ["morning", "afternoon", "evening"].every((key) => isComplete(record[key])) && !isComplete(record.secondary);
+    const overtimeReady = [
+      ["morning", "12:30", "14:00"],
+      ["afternoon", "17:30", "19:00"]
+    ].every(([key, start, end]) => record[key]?.overtimeStartTime === start && record[key]?.overtimeEndTime === end);
+    return { completeKeys, completeCount: completeKeys.length, leaveConflictKeys, hasLeaveConflict: leaveConflictKeys.length > 0, mainReady, overtimeReady };
+  }
+
   function hasWeekContent(weekRecord) {
     const days = weekRecord?.days || weekRecord || {};
     return Object.values(days).some(hasDayContent);
@@ -440,6 +454,7 @@
     targetWeekAvailable,
     copyWeekRecord,
     planDayFromTemplates,
+    evaluateDaySchedule,
     migrateState
   };
 });

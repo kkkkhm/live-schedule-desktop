@@ -224,17 +224,11 @@
   function buildDayGuidance(dateKey) {
     const box = document.createElement("div"); box.className = "day-guidance"; const day = selectedRoomKey ? getDay(dateKey) : null; const meta = day?.autoSchedule;
     if (!meta) { box.classList.add("muted"); box.textContent = "尚未生成"; return box; }
-    const expectedPartTimeKeys = meta.partTimeShiftKey ? [meta.partTimeShiftKey] : (Array.isArray(meta.missingShiftKeys) ? meta.missingShiftKeys : []);
-    const partTimeReady = expectedPartTimeKeys.some((key) => { const slot = day[key]; return slot?.groupType === "partTime" && slot.hostId && slot.coHostId; });
-    const isComplete = (slot) => Boolean(slot?.hostId && slot?.coHostId && Logic.durationHours(slot.startTime, slot.endTime)); const completeCount = shifts.filter((shift) => isComplete(day[shift.key])).length;
-    const overtimeReady = meta.scenario !== "two" || ["morning", "afternoon"].every((key) => { const slot = day[key]; const expected = key === "morning" ? ["12:30", "14:00"] : ["17:30", "19:00"]; return slot?.groupType !== "partTime" && slot?.overtimeStartTime === expected[0] && slot?.overtimeEndTime === expected[1]; });
-    const leaveIds = new Set((day.leavePeople || []).map((item) => item.personId)); const scheduledLeaveConflict = shifts.some((shift) => { const slot = day[shift.key]; return isComplete(slot) && (leaveIds.has(slot.hostId) || leaveIds.has(slot.coHostId)); }); const partTimeSlot = shifts.map((shift) => day[shift.key]).find((slot) => slot?.groupType === "partTime"); const partTimeLeaveConflict = meta.partTimeConflict || Boolean(partTimeSlot && (leaveIds.has(partTimeSlot.hostId) || leaveIds.has(partTimeSlot.coHostId)));
-    if (partTimeLeaveConflict && meta.needsPartTime) { box.classList.add("danger"); box.textContent = "兼职班组与休假冲突 · 请人工处理"; return box; }
-    if (scheduledLeaveConflict) { box.classList.add("danger"); box.textContent = "当前排班与休假人员冲突 · 请重新生成或调整"; }
-    else if (meta.scenario === "four") { const ready = completeCount === 4; box.classList.add(ready ? "ok" : "warning"); box.textContent = ready ? "4组齐全 · 无需加班" : `当前缺${4 - completeCount}班`; }
-    else if (meta.scenario === "three") { const ready = partTimeReady && completeCount === 4; box.classList.add(ready ? "ok" : "warning"); box.textContent = ready ? "固定兼职已自动补入 · 4班齐全" : "兼职尚未补入 · 请重新生成排班"; }
-    else if (meta.scenario === "two") { const mainReady = ["morning", "afternoon", "evening"].every((key) => isComplete(day[key])) && !isComplete(day.secondary); const tasks = []; if (!partTimeReady || !mainReady) tasks.push("自动补入固定兼职"); if (!overtimeReady) tasks.push("恢复系统加班时间"); box.classList.add(tasks.length ? "warning" : "ok"); box.textContent = tasks.length ? `需${tasks.join("；")}` : "主号三班已补齐 · 两组正式班组各加班1.5h"; }
-    else { box.classList.add("danger"); box.textContent = `${meta.formalGroupCount}组可用 · 请人工处理`; }
+    const evaluation = Logic.evaluateDaySchedule(day, shifts.map((shift) => shift.key));
+    if (evaluation.hasLeaveConflict) { box.classList.add("danger"); box.textContent = "当前排班与休假人员冲突 · 请重新调整"; }
+    else if (evaluation.completeCount === 4) { box.classList.add("ok"); box.textContent = "4班齐全 · 当前排班可用"; }
+    else if (meta.scenario === "two" && evaluation.mainReady) { const ready = evaluation.overtimeReady; box.classList.add(ready ? "ok" : "warning"); box.textContent = ready ? "主号三班已补齐 · 两组各加班1.5h" : "主号三班已补齐 · 请恢复两段1.5h加班"; }
+    else { const missing = Math.max(0, 4 - evaluation.completeCount); box.classList.add("warning"); box.textContent = missing ? `当前缺${missing}班 · 请补齐后刷新` : "请检查当前排班"; }
     return box;
   }
   function refreshScheduleGuidance() {
