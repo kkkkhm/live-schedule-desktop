@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>直播周排班</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">本地排班工具</p>
+      <h1>直播周排班</h1>
+      <p class="subtitle">周一至周日排班、人员管理与直播时长统计</p>
+    </div>
+    <div class="header-actions" aria-label="数据操作">
+      <button id="exportJsonBtn" class="button secondary">导出备份</button>
+      <button id="importJsonBtn" class="button secondary">导入备份</button>
+      <button id="exportScheduleCsvBtn" class="button secondary">导出排班 CSV</button>
+      <button id="exportStatsCsvBtn" class="button secondary">导出统计 CSV</button>
+      <input id="importFileInput" type="file" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <main>
+    <section class="week-toolbar" aria-label="周选择">
+      <button id="previousWeekBtn" class="icon-button" aria-label="上一周">‹</button>
+      <label class="date-control">
+        <span>选择日期</span>
+        <input id="weekDateInput" type="date">
+      </label>
+      <button id="todayWeekBtn" class="button secondary">回到本周</button>
+      <button id="nextWeekBtn" class="icon-button" aria-label="下一周">›</button>
+      <div class="week-summary">
+        <strong id="weekRangeLabel"></strong>
+        <span id="saveStatus" role="status">已自动保存</span>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="功能导航">
+      <button class="tab active" data-tab="schedule">周排班</button>
+      <button class="tab" data-tab="people">人员管理</button>
+      <button class="tab" data-tab="stats">时长统计</button>
+    </nav>
+
+    <section id="schedulePanel" class="panel active" data-panel="schedule">
+      <div class="panel-heading">
+        <div>
+          <h2>周排班</h2>
+          <p>在每个班次中选择主播、副播和直播时间。修改后自动保存。</p>
+        </div>
+        <div class="legend">
+          <span><i class="dot today"></i>今天</span>
+          <span><i class="dot conflict"></i>排班冲突</span>
+        </div>
+      </div>
+      <div class="schedule-scroll">
+        <table class="schedule-table">
+          <thead id="scheduleHead"></thead>
+          <tbody id="scheduleBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="peoplePanel" class="panel" data-panel="people" hidden>
+      <div class="panel-heading">
+        <div>
+          <h2>人员管理</h2>
+          <p>停用人员不会出现在新排班中，已有排班记录仍会保留。</p>
+        </div>
+      </div>
+      <form id="personForm" class="person-form">
+        <input id="personIdInput" type="hidden">
+        <label>
+          <span>姓名</span>
+          <input id="personNameInput" type="text" maxlength="20" required placeholder="输入姓名">
+        </label>
+        <fieldset>
+          <legend>可担任角色</legend>
+          <label class="check-label"><input id="canHostInput" type="checkbox"> 主播</label>
+          <label class="check-label"><input id="canCoHostInput" type="checkbox"> 副播</label>
+        </fieldset>
+        <div class="form-actions">
+          <button id="savePersonBtn" class="button primary" type="submit">新增人员</button>
+          <button id="cancelPersonEditBtn" class="button ghost" type="button" hidden>取消编辑</button>
+        </div>
+        <p id="personFormError" class="form-error" role="alert"></p>
+      </form>
+      <div class="people-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>姓名</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="peopleTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="statsPanel" class="panel" data-panel="stats" hidden>
+      <div class="panel-heading">
+        <div>
+          <h2>时长统计</h2>
+          <p id="statsRangeLabel"></p>
+        </div>
+        <div class="stats-cards">
+          <div><span>直播场次</span><strong id="sessionCount">0</strong></div>
+          <div><span>总人时</span><strong id="totalPersonHours">0h</strong></div>
+        </div>
+      </div>
+      <div class="stats-layout">
+        <div class="people-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>人员</th><th>主播时长</th><th>副播时长</th><th>总时长</th></tr></thead>
+            <tbody id="statsTableBody"></tbody>
+          </table>
+        </div>
+        <aside class="conflict-card">
+          <h3>排班检查</h3>
+          <div id="conflictList"></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="logic.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
