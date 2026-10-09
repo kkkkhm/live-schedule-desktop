@@ -66,10 +66,10 @@
         <div>
           <div class="schedule-title-row">
             <h2>周排班</h2>
-            <label class="room-scope-control"><span>直播间</span><select id="scheduleRoomSelect"><option value="">请选择直播间</option></select></label>
+            <select id="scheduleRoomSelect" hidden aria-hidden="true" tabindex="-1"><option value="">请选择直播间</option></select>
             <button id="saveScheduleBtn" class="button primary" type="button">保存排班</button>
           </div>
-          <p id="scheduleHint">请选择直播间，再为该直播间安排主播、副播和直播时间。</p>
+          <p id="scheduleHint">为每个班次安排主播、副播和直播时间。</p>
         </div>
         <div class="legend">
           <span><i class="dot today"></i>今天</span>
