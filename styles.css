@@ -98,6 +98,7 @@ main { padding: 24px 36px 48px; }
 .button.ghost { background: transparent; border-color: var(--border); }
 .button.small { padding: 5px 9px; font-size: 12px; }
 .button.danger { color: var(--danger); border-color: #efcaca; background: white; }
+.button:disabled { cursor: not-allowed; opacity: .55; transform: none; }
 .icon-button { width: 36px; height: 36px; padding: 0; border-color: var(--border); font-size: 25px; line-height: 1; }
 
 .tabs { display: flex; gap: 3px; margin: 24px 0 0; border-bottom: 1px solid var(--border); }

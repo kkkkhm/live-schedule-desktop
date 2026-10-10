@@ -165,6 +165,24 @@ test("returns only non-empty history from the last three months", () => {
   assert.deepEqual(records.map((item) => item.dateKey), ["2026-10-05"]);
 });
 
+test("clears only selected schedule days while preserving leave information", () => {
+  const roomSchedule = { days: {
+    "2026-10-01": { morning: { hostId: "a" }, overtimeMorning: { hostId: "b" }, autoSchedule: { scenario: "two" }, leavePeople: [{ personId: "c" }], leaveNote: "年假", updatedAt: "old" },
+    "2026-10-02": { afternoon: { hostId: "d" }, leavePeople: [], leaveNote: "" },
+    "2026-10-03": { evening: { hostId: "e" }, leavePeople: [], leaveNote: "区间外" }
+  } };
+  const cleared = Logic.clearScheduleDays(roomSchedule, ["2026-10-01", "2026-10-02"], ["morning", "afternoon", "evening", "overtimeMorning"], "new-time");
+  assert.equal(cleared, 2);
+  assert.deepEqual(roomSchedule.days["2026-10-01"].leavePeople, [{ personId: "c" }]);
+  assert.equal(roomSchedule.days["2026-10-01"].leaveNote, "年假");
+  assert.equal(roomSchedule.days["2026-10-01"].morning, undefined);
+  assert.equal(roomSchedule.days["2026-10-01"].overtimeMorning, undefined);
+  assert.equal(roomSchedule.days["2026-10-01"].autoSchedule, undefined);
+  assert.equal(roomSchedule.days["2026-10-01"].updatedAt, "new-time");
+  assert.equal(roomSchedule.days["2026-10-02"].afternoon, undefined);
+  assert.equal(roomSchedule.days["2026-10-03"].evening.hostId, "e");
+});
+
 test("builds flexible date ranges across week boundaries", () => {
   assert.deepEqual(Logic.dateRange("2026-10-03", "2026-10-06").map(Logic.toIsoDate), ["2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06"]);
 });

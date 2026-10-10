@@ -282,6 +282,22 @@
     return { completeKeys, completeCount: completeKeys.length, leaveConflictKeys, hasLeaveConflict: leaveConflictKeys.length > 0, mainReady, overtimeReady };
   }
 
+  function clearScheduleDays(roomSchedule, dateKeys, shiftKeys, timestamp = new Date().toISOString()) {
+    if (!roomSchedule?.days || !Array.isArray(dateKeys) || !Array.isArray(shiftKeys)) return 0;
+    let cleared = 0;
+    dateKeys.forEach((dateKey) => {
+      const day = roomSchedule.days[dateKey];
+      if (!day || typeof day !== "object") return;
+      let changed = false;
+      shiftKeys.forEach((shiftKey) => {
+        if (Object.prototype.hasOwnProperty.call(day, shiftKey)) { delete day[shiftKey]; changed = true; }
+      });
+      if (Object.prototype.hasOwnProperty.call(day, "autoSchedule")) { delete day.autoSchedule; changed = true; }
+      if (changed) { day.updatedAt = timestamp; cleared += 1; }
+    });
+    return cleared;
+  }
+
   function hasWeekContent(weekRecord) {
     const days = weekRecord?.days || weekRecord || {};
     return Object.values(days).some(hasDayContent);
@@ -455,6 +471,7 @@
     copyWeekRecord,
     planDayFromTemplates,
     evaluateDaySchedule,
+    clearScheduleDays,
     migrateState
   };
 });
