@@ -16,6 +16,7 @@
     <div class="header-actions" aria-label="数据操作">
       <button id="exportJsonBtn" class="button secondary">导出备份</button>
       <button id="importJsonBtn" class="button secondary">导入备份</button>
+      <button id="exportScheduleXlsxBtn" class="button secondary">导出排班 Excel</button>
       <button id="exportScheduleCsvBtn" class="button secondary">导出排班 CSV</button>
       <button id="exportStatsCsvBtn" class="button secondary">导出统计 CSV</button>
       <input id="importFileInput" type="file" accept="application/json,.json" hidden>
@@ -208,6 +209,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <script src="vendor/exceljs.min.js"></script>
   <script src="logic.js"></script>
   <script src="app.js"></script>
 </body>

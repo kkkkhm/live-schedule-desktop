@@ -40,7 +40,7 @@
       previousWeekBtn: byId("previousWeekBtn"), nextWeekBtn: byId("nextWeekBtn"), todayWeekBtn: byId("todayWeekBtn"), historyStartInput: byId("historyStartInput"), historyEndInput: byId("historyEndInput"), historyRoomFilter: byId("historyRoomFilter"), openHistoryRangeBtn: byId("openHistoryRangeBtn"), refreshOverviewBtn: byId("refreshOverviewBtn"), overviewTableBody: byId("overviewTableBody"),
       roomForm: byId("roomForm"), roomIdInput: byId("roomIdInput"), roomNameInput: byId("roomNameInput"), roomAccountInput: byId("roomAccountInput"), saveRoomBtn: byId("saveRoomBtn"), cancelRoomEditBtn: byId("cancelRoomEditBtn"), roomFormError: byId("roomFormError"), roomsTableBody: byId("roomsTableBody"),
       personForm: byId("personForm"), personIdInput: byId("personIdInput"), personNameInput: byId("personNameInput"), canHostInput: byId("canHostInput"), canCoHostInput: byId("canCoHostInput"), employmentTypeInput: byId("employmentTypeInput"), savePersonBtn: byId("savePersonBtn"), cancelPersonEditBtn: byId("cancelPersonEditBtn"), personFormError: byId("personFormError"), peopleTableBody: byId("peopleTableBody"),
-      statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), exportJsonBtn: byId("exportJsonBtn"), importJsonBtn: byId("importJsonBtn"), importFileInput: byId("importFileInput"), exportScheduleCsvBtn: byId("exportScheduleCsvBtn"), exportStatsCsvBtn: byId("exportStatsCsvBtn"), toast: byId("toast")
+      statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), exportJsonBtn: byId("exportJsonBtn"), importJsonBtn: byId("importJsonBtn"), importFileInput: byId("importFileInput"), exportScheduleXlsxBtn: byId("exportScheduleXlsxBtn"), exportScheduleCsvBtn: byId("exportScheduleCsvBtn"), exportStatsCsvBtn: byId("exportStatsCsvBtn"), toast: byId("toast")
     });
     if (!roomKeyExists(selectedRoomKey)) selectedRoomKey = state.rooms.find((room) => room.active)?.id || Object.keys(state.schedules)[0] || "";
     if (selectedRoomKey) state.settings.lastRoomKey = selectedRoomKey;
@@ -71,7 +71,7 @@
     elements.openHistoryRangeBtn.addEventListener("click", openHistoryRange); elements.refreshOverviewBtn.addEventListener("click", () => { renderOverview(); showToast("近三月总览已更新"); }); elements.historyRoomFilter.addEventListener("change", renderOverview);
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
     elements.roomForm.addEventListener("submit", saveRoom); elements.cancelRoomEditBtn.addEventListener("click", resetRoomForm); elements.personForm.addEventListener("submit", savePerson); elements.cancelPersonEditBtn.addEventListener("click", resetPersonForm);
-    elements.exportJsonBtn.addEventListener("click", exportJson); elements.importJsonBtn.addEventListener("click", () => elements.importFileInput.click()); elements.importFileInput.addEventListener("change", importJson); elements.exportScheduleCsvBtn.addEventListener("click", exportScheduleCsv); elements.exportStatsCsvBtn.addEventListener("click", exportStatsCsv);
+    elements.exportJsonBtn.addEventListener("click", exportJson); elements.importJsonBtn.addEventListener("click", () => elements.importFileInput.click()); elements.importFileInput.addEventListener("change", importJson); elements.exportScheduleXlsxBtn.addEventListener("click", exportScheduleXlsx); elements.exportScheduleCsvBtn.addEventListener("click", exportScheduleCsv); elements.exportStatsCsvBtn.addEventListener("click", exportStatsCsv);
     document.addEventListener("click", (event) => { if (!elements.rangePickerPanel.hidden && event.target instanceof Element && !event.target.closest(".range-picker-wrap")) closeRangePicker(); });
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !elements.rangePickerPanel.hidden) closeRangePicker(); });
   }
@@ -278,6 +278,89 @@
   function exportJson() { downloadFile(`直播排班备份-${todayStamp()}.json`, JSON.stringify(state, null, 2), "application/json;charset=utf-8"); showToast("JSON 备份已导出"); }
   async function importJson(event) { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { const migrated = Logic.migrateState(JSON.parse(await file.text())); if (!window.confirm("导入会覆盖当前直播间、人员和全部排班数据。是否继续？")) return; state = migrated; selectedRoomKey = state.settings.lastRoomKey || ""; selectedStart = validDateKey(state.settings.rangeStart) ? state.settings.rangeStart : Logic.toIsoDate(new Date()); selectedEnd = validDateKey(state.settings.rangeEnd) ? state.settings.rangeEnd : Logic.toIsoDate(Logic.addDays(new Date(), 6)); saveState(); resetRoomForm(); resetPersonForm(); renderRangePickerButton(); renderAll(); renderOverview(); showToast("备份已导入并升级为 V4"); } catch (error) { showToast(`导入失败：${error.message}`, true); } }
   function exportScheduleCsv() { if (!selectedRoomKey) return showToast("请先选择直播间。", true); const schedule = getRoomSchedule(false); const info = roomInfo(selectedRoomKey, schedule); const rows = [["日期", "星期", "班次", "班组类型", "直播间名称", "账号", "主播", "主播用工类型", "副播", "副播用工类型", "开始时间", "结束时间", "直播时长", "加班开始", "加班结束", "加班时长", "备注", "休假人员", "休假备注"]]; currentDates().forEach((date) => { const dateKey = Logic.toIsoDate(date); const day = schedule?.days?.[dateKey]; if (!day) return; let added = false; [...shifts, ...legacyOvertimeShifts].forEach((shift) => { const slot = day[shift.key]; if (!slot || (!slot.hostId && !slot.coHostId && !slot.note)) return; const host = state.people.find((p) => p.id === slot.hostId); const coHost = state.people.find((p) => p.id === slot.coHostId); const slotRoom = state.rooms.find((r) => r.id === slot.roomId); rows.push([dateKey, weekdays[date.getDay()], shift.label, slot.groupType === "partTime" ? "兼职" : "正式", slotRoom?.name || slot.roomNameSnapshot || info.name, slotRoom?.account || slot.roomAccountSnapshot || info.account, host?.name || slot.hostNameSnapshot || "", employmentLabel(host), coHost?.name || slot.coHostNameSnapshot || "", employmentLabel(coHost), slot.startTime || "", slot.endTime || "", shift.isOvertime ? "" : formatHours(Logic.durationHours(slot.startTime, slot.endTime)), shift.isOvertime ? slot.startTime || "" : slot.overtimeStartTime || "", shift.isOvertime ? slot.endTime || "" : slot.overtimeEndTime || "", formatHours(shift.isOvertime ? Logic.durationHours(slot.startTime, slot.endTime) : Logic.durationHours(slot.overtimeStartTime, slot.overtimeEndTime)), slot.note || "", leaveNames(day), day.leaveNote || ""]); added = true; }); if (!added && (day.leavePeople?.length || day.leaveNote)) rows.push([dateKey, weekdays[date.getDay()], "休假", "", info.name, info.account, "", "", "", "", "", "", "", "", "", "", "", leaveNames(day), day.leaveNote || ""]); }); downloadCsv(`排班-${info.name}-${selectedStart}-${selectedEnd}.csv`, rows); }
+
+  function scheduleCellText(day, shift) {
+    const slot = day?.[shift.key];
+    if (!slot) return "未安排";
+    const host = state.people.find((person) => person.id === slot.hostId)?.name || slot.hostNameSnapshot || "未安排";
+    const coHost = state.people.find((person) => person.id === slot.coHostId)?.name || slot.coHostNameSnapshot || "未安排";
+    const lines = [`主播：${host}`, `副播：${coHost}`];
+    if (slot.startTime || slot.endTime) lines.push(`直播：${slot.startTime || "--:--"}–${slot.endTime || "--:--"}`);
+    if (slot.overtimeStartTime || slot.overtimeEndTime) lines.push(`加班：${slot.overtimeStartTime || "--:--"}–${slot.overtimeEndTime || "--:--"}`);
+    if (slot.note) lines.push(`备注：${slot.note}`);
+    return lines.join("\n");
+  }
+
+  async function exportScheduleXlsx() {
+    if (!selectedRoomKey) return showToast("请先在直播间管理中新增直播间。", true);
+    if (!window.ExcelJS) return showToast("Excel 导出组件未加载，请刷新页面后重试。", true);
+    const dates = currentDates();
+    if (!dates.length) return showToast("当前日期区间无效。", true);
+    const schedule = getRoomSchedule(false);
+    const workbook = new window.ExcelJS.Workbook();
+    workbook.creator = "直播周排班工具";
+    workbook.created = new Date();
+    const worksheet = workbook.addWorksheet("排班表", { views: [{ state: "frozen", xSplit: 1, ySplit: 2 }] });
+    const columnCount = dates.length + 1;
+    worksheet.mergeCells(1, 1, 1, columnCount);
+    const title = worksheet.getCell(1, 1);
+    title.value = `直播排班表（${selectedStart} 至 ${selectedEnd}）`;
+    title.font = { name: "微软雅黑", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+    title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5597" } };
+    title.alignment = { horizontal: "center", vertical: "middle" };
+    worksheet.getRow(1).height = 30;
+    const headers = ["班次 / 日期", ...dates.map((date) => `${weekdays[date.getDay()]}\n${date.getMonth() + 1}.${date.getDate()}`)];
+    worksheet.addRow(headers);
+    const headerRow = worksheet.getRow(2);
+    headerRow.height = 34;
+    headerRow.eachCell((cell) => {
+      cell.font = { name: "微软雅黑", bold: true, color: { argb: "FF17365D" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E7F5" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    });
+    shifts.forEach((shift) => {
+      const row = worksheet.addRow([shift.label, ...dates.map((date) => scheduleCellText(schedule?.days?.[Logic.toIsoDate(date)], shift))]);
+      row.height = 88;
+      row.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: shift.secondary ? "FFFFF2CC" : "FFEAF2F8" } };
+      row.getCell(1).font = { name: "微软雅黑", bold: true, color: { argb: "FF17365D" } };
+      row.getCell(1).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    });
+    const leaveRow = worksheet.addRow(["休假人员", ...dates.map((date) => {
+      const day = schedule?.days?.[Logic.toIsoDate(date)];
+      const names = day ? leaveNames(day) : "";
+      return [names ? `人员：${names}` : "无", day?.leaveNote ? `备注：${day.leaveNote}` : ""].filter(Boolean).join("\n");
+    })]);
+    leaveRow.height = 52;
+    leaveRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFCE4D6" } };
+    leaveRow.getCell(1).font = { name: "微软雅黑", bold: true, color: { argb: "FF843C0C" } };
+    leaveRow.getCell(1).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    worksheet.getColumn(1).width = 16;
+    for (let index = 2; index <= columnCount; index += 1) worksheet.getColumn(index).width = 27;
+    for (let rowIndex = 2; rowIndex <= worksheet.rowCount; rowIndex += 1) {
+      for (let columnIndex = 1; columnIndex <= columnCount; columnIndex += 1) {
+        const cell = worksheet.getCell(rowIndex, columnIndex);
+        cell.border = { top: { style: "thin", color: { argb: "FFB4C6E7" } }, left: { style: "thin", color: { argb: "FFB4C6E7" } }, bottom: { style: "thin", color: { argb: "FFB4C6E7" } }, right: { style: "thin", color: { argb: "FFB4C6E7" } } };
+        if (rowIndex > 2 && columnIndex > 1) { cell.font = { name: "微软雅黑", size: 10, color: { argb: "FF1F2937" } }; cell.alignment = { vertical: "top", wrapText: true }; }
+      }
+    }
+    worksheet.pageSetup = { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
+    worksheet.pageSetup.printArea = `A1:${worksheet.getColumn(columnCount).letter}${worksheet.rowCount}`;
+    worksheet.headerFooter.oddFooter = "第 &P / &N 页";
+    const buttonText = elements.exportScheduleXlsxBtn.textContent;
+    elements.exportScheduleXlsxBtn.disabled = true;
+    elements.exportScheduleXlsxBtn.textContent = "正在生成…";
+    try {
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadFile(`排班表-${selectedStart}-${selectedEnd}.xlsx`, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      showToast("Excel 排班表已导出");
+    } catch (error) {
+      console.error(error);
+      showToast("Excel 导出失败，请刷新页面后重试。", true);
+    } finally {
+      elements.exportScheduleXlsxBtn.disabled = false;
+      elements.exportScheduleXlsxBtn.textContent = buttonText;
+    }
+  }
   function exportStatsCsv() { if (!selectedRoomKey) return showToast("请先选择直播间。", true); const stats = Logic.calculateStatistics(selectedDaysObject(), state.people); downloadCsv(`时长统计-${roomInfo(selectedRoomKey, getRoomSchedule(false)).name}-${selectedStart}-${selectedEnd}.csv`, [["人员", "直播时长", "加班时长", "总时长"], ...stats.rows.map((row) => [row.name, formatHours(row.liveHours), formatHours(row.overtimeHours), formatHours(row.totalHours)])]); }
   function leaveNames(day) { return (day.leavePeople || []).map((item) => state.people.find((p) => p.id === item.personId)?.name || item.personNameSnapshot).join("、"); }
   function employmentLabel(person) { return person ? (person.employmentType === "partTime" ? "兼职" : "正式员工") : ""; }
