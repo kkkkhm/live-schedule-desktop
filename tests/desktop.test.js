@@ -28,6 +28,7 @@ assert.doesNotMatch(preload, /require\("node:fs"\)/);
 assert.match(html, /Content-Security-Policy/);
 assert.match(html, /id="checkUpdateBtn"/);
 assert.match(workflow, /gh release create/);
+assert.match(workflow, /GH_REPO: \$\{\{ github\.repository \}\}/);
 assert.match(workflow, /needs: build/);
 assert.match(workflow, /desktop-dist\/LiveSchedule-Windows-\*\.exe/);
 assert.match(workflow, /desktop-dist\/LiveSchedule-macOS-\*\.zip/);
