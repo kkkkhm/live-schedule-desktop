@@ -173,6 +173,21 @@
           <p>全局管理班次、正式班组、固定兼职班组和智能排班最低目标。</p>
         </div>
       </div>
+      <section class="settings-card update-card">
+        <div class="update-card-heading">
+          <div>
+            <h3>应用更新</h3>
+            <p>通过 GitHub Releases 检查 Windows 与 macOS 新版本。</p>
+          </div>
+          <span id="currentAppVersion" class="version-badge">读取中</span>
+        </div>
+        <div class="update-actions">
+          <button id="checkUpdateBtn" class="button secondary" type="button">检查更新</button>
+          <button id="downloadUpdateBtn" class="button primary" type="button" hidden>前往下载</button>
+          <span id="updateStatus" role="status">正在识别运行环境…</span>
+        </div>
+        <div id="updateNotes" class="update-notes" hidden></div>
+      </section>
       <section class="settings-card">
         <h3>每日最低目标</h3>
         <form id="scheduleTargetsForm" class="settings-form targets-form">

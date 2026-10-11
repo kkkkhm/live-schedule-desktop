@@ -34,6 +34,7 @@ async function run() {
           title: document.title,
           readyState: document.readyState,
           hasLogic: Boolean(window.ScheduleLogic),
+          hasUpdateBridge: Boolean(window.desktopUpdates),
           hasSettingsTab: [...document.querySelectorAll(".tab")].some((item) => item.textContent.trim() === "排班设置"),
           hasSchedule: document.body.innerText.includes("直播排班"),
           storage: localStorage.getItem("desktop-smoke-key")
@@ -49,6 +50,7 @@ async function run() {
     title: "直播排班",
     readyState: "complete",
     hasLogic: true,
+    hasUpdateBridge: true,
     hasSettingsTab: true,
     hasSchedule: true,
     storage: mode === "write" || mode === "check" ? "persisted" : null

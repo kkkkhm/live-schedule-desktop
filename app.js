@@ -42,7 +42,7 @@
       scheduleHead: byId("scheduleHead"), scheduleBody: byId("scheduleBody"), scheduleRoomSelect: byId("scheduleRoomSelect"), saveScheduleBtn: byId("saveScheduleBtn"), clearScheduleBtn: byId("clearScheduleBtn"), scheduleHint: byId("scheduleHint"), scheduleEmptyState: byId("scheduleEmptyState"), scheduleScroll: document.querySelector(".schedule-scroll"), autoScheduler: byId("autoScheduler"), groupTemplateGrid: byId("groupTemplateGrid"), generateScheduleBtn: byId("generateScheduleBtn"), refreshGuidanceBtn: byId("refreshGuidanceBtn"), openScheduleSettingsBtn: byId("openScheduleSettingsBtn"), autoScheduleStatus: byId("autoScheduleStatus"),
       previousWeekBtn: byId("previousWeekBtn"), nextWeekBtn: byId("nextWeekBtn"), todayWeekBtn: byId("todayWeekBtn"), historyStartInput: byId("historyStartInput"), historyEndInput: byId("historyEndInput"), historyRoomFilter: byId("historyRoomFilter"), openHistoryRangeBtn: byId("openHistoryRangeBtn"), refreshOverviewBtn: byId("refreshOverviewBtn"), overviewTableBody: byId("overviewTableBody"),
       performanceEntryRangeLabel: byId("performanceEntryRangeLabel"), performanceRangeLabel: byId("performanceRangeLabel"), performanceTableHead: byId("performanceTableHead"), performanceTableBody: byId("performanceTableBody"), hostRankingBody: byId("hostRankingBody"), coHostRankingBody: byId("coHostRankingBody"),
-      scheduleTargetsForm: byId("scheduleTargetsForm"), minimumShiftCountInput: byId("minimumShiftCountInput"), minimumTotalHoursInput: byId("minimumTotalHoursInput"), defaultOvertimeHoursInput: byId("defaultOvertimeHoursInput"), scheduleTargetsError: byId("scheduleTargetsError"), shiftDefinitionForm: byId("shiftDefinitionForm"), shiftDefinitionIdInput: byId("shiftDefinitionIdInput"), shiftDefinitionNameInput: byId("shiftDefinitionNameInput"), shiftDefinitionRoomInput: byId("shiftDefinitionRoomInput"), shiftDefinitionStartInput: byId("shiftDefinitionStartInput"), shiftDefinitionEndInput: byId("shiftDefinitionEndInput"), shiftDefinitionOvertimeInput: byId("shiftDefinitionOvertimeInput"), shiftDefinitionPriorityInput: byId("shiftDefinitionPriorityInput"), saveShiftDefinitionBtn: byId("saveShiftDefinitionBtn"), cancelShiftDefinitionBtn: byId("cancelShiftDefinitionBtn"), shiftDefinitionError: byId("shiftDefinitionError"), shiftDefinitionsTableBody: byId("shiftDefinitionsTableBody"), formalGroupForm: byId("formalGroupForm"), formalGroupIdInput: byId("formalGroupIdInput"), formalGroupNameInput: byId("formalGroupNameInput"), formalGroupHostInput: byId("formalGroupHostInput"), formalGroupCoHostInput: byId("formalGroupCoHostInput"), formalGroupShiftInput: byId("formalGroupShiftInput"), saveFormalGroupBtn: byId("saveFormalGroupBtn"), cancelFormalGroupBtn: byId("cancelFormalGroupBtn"), formalGroupError: byId("formalGroupError"), formalGroupsTableBody: byId("formalGroupsTableBody"), partTimeGroupForm: byId("partTimeGroupForm"), partTimeGroupHostInput: byId("partTimeGroupHostInput"), partTimeGroupCoHostInput: byId("partTimeGroupCoHostInput"), partTimeGroupError: byId("partTimeGroupError"),
+      currentAppVersion: byId("currentAppVersion"), checkUpdateBtn: byId("checkUpdateBtn"), downloadUpdateBtn: byId("downloadUpdateBtn"), updateStatus: byId("updateStatus"), updateNotes: byId("updateNotes"), scheduleTargetsForm: byId("scheduleTargetsForm"), minimumShiftCountInput: byId("minimumShiftCountInput"), minimumTotalHoursInput: byId("minimumTotalHoursInput"), defaultOvertimeHoursInput: byId("defaultOvertimeHoursInput"), scheduleTargetsError: byId("scheduleTargetsError"), shiftDefinitionForm: byId("shiftDefinitionForm"), shiftDefinitionIdInput: byId("shiftDefinitionIdInput"), shiftDefinitionNameInput: byId("shiftDefinitionNameInput"), shiftDefinitionRoomInput: byId("shiftDefinitionRoomInput"), shiftDefinitionStartInput: byId("shiftDefinitionStartInput"), shiftDefinitionEndInput: byId("shiftDefinitionEndInput"), shiftDefinitionOvertimeInput: byId("shiftDefinitionOvertimeInput"), shiftDefinitionPriorityInput: byId("shiftDefinitionPriorityInput"), saveShiftDefinitionBtn: byId("saveShiftDefinitionBtn"), cancelShiftDefinitionBtn: byId("cancelShiftDefinitionBtn"), shiftDefinitionError: byId("shiftDefinitionError"), shiftDefinitionsTableBody: byId("shiftDefinitionsTableBody"), formalGroupForm: byId("formalGroupForm"), formalGroupIdInput: byId("formalGroupIdInput"), formalGroupNameInput: byId("formalGroupNameInput"), formalGroupHostInput: byId("formalGroupHostInput"), formalGroupCoHostInput: byId("formalGroupCoHostInput"), formalGroupShiftInput: byId("formalGroupShiftInput"), saveFormalGroupBtn: byId("saveFormalGroupBtn"), cancelFormalGroupBtn: byId("cancelFormalGroupBtn"), formalGroupError: byId("formalGroupError"), formalGroupsTableBody: byId("formalGroupsTableBody"), partTimeGroupForm: byId("partTimeGroupForm"), partTimeGroupHostInput: byId("partTimeGroupHostInput"), partTimeGroupCoHostInput: byId("partTimeGroupCoHostInput"), partTimeGroupError: byId("partTimeGroupError"),
       roomForm: byId("roomForm"), roomIdInput: byId("roomIdInput"), roomNameInput: byId("roomNameInput"), roomAccountInput: byId("roomAccountInput"), saveRoomBtn: byId("saveRoomBtn"), cancelRoomEditBtn: byId("cancelRoomEditBtn"), roomFormError: byId("roomFormError"), roomsTableBody: byId("roomsTableBody"),
       personForm: byId("personForm"), personIdInput: byId("personIdInput"), personNameInput: byId("personNameInput"), canHostInput: byId("canHostInput"), canCoHostInput: byId("canCoHostInput"), employmentTypeInput: byId("employmentTypeInput"), savePersonBtn: byId("savePersonBtn"), cancelPersonEditBtn: byId("cancelPersonEditBtn"), personFormError: byId("personFormError"), peopleTableBody: byId("peopleTableBody"),
       statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), exportJsonBtn: byId("exportJsonBtn"), importJsonBtn: byId("importJsonBtn"), importFileInput: byId("importFileInput"), exportScheduleXlsxBtn: byId("exportScheduleXlsxBtn"), exportScheduleCsvBtn: byId("exportScheduleCsvBtn"), exportStatsCsvBtn: byId("exportStatsCsvBtn"), toast: byId("toast")
@@ -51,7 +51,7 @@
     if (selectedRoomKey) state.settings.lastRoomKey = selectedRoomKey;
     renderRangePickerButton();
     elements.historyStartInput.value = selectedStart; elements.historyEndInput.value = selectedEnd;
-    bindEvents(); renderAll(); renderOverview();
+    bindEvents(); renderAll(); renderOverview(); initializeUpdateUi();
   }
   function byId(id) { return document.getElementById(id); }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -80,6 +80,7 @@
     elements.previousWeekBtn.addEventListener("click", () => shiftRange(-1)); elements.nextWeekBtn.addEventListener("click", () => shiftRange(1)); elements.todayWeekBtn.addEventListener("click", resetRangeToday);
     elements.rangePickerBtn.addEventListener("click", toggleRangePicker); elements.previousMonthBtn.addEventListener("click", () => changeCalendarMonth(-1)); elements.nextMonthBtn.addEventListener("click", () => changeCalendarMonth(1)); elements.closeRangePickerBtn.addEventListener("click", closeRangePicker); elements.scheduleRoomSelect.addEventListener("change", () => selectRoom(elements.scheduleRoomSelect.value)); elements.saveScheduleBtn.addEventListener("click", saveScheduleNow); elements.clearScheduleBtn.addEventListener("click", clearCurrentSchedule); elements.generateScheduleBtn.addEventListener("click", generateRangeSchedule); elements.refreshGuidanceBtn.addEventListener("click", refreshScheduleGuidance);
     elements.openScheduleSettingsBtn.addEventListener("click", () => activateTab("settings")); elements.scheduleTargetsForm.addEventListener("submit", saveScheduleTargets); elements.shiftDefinitionForm.addEventListener("submit", saveShiftDefinition); elements.cancelShiftDefinitionBtn.addEventListener("click", resetShiftDefinitionForm); elements.formalGroupForm.addEventListener("submit", saveFormalGroup); elements.cancelFormalGroupBtn.addEventListener("click", resetFormalGroupForm); elements.partTimeGroupForm.addEventListener("submit", savePartTimeGroup);
+    elements.checkUpdateBtn.addEventListener("click", () => checkDesktopUpdate(true)); elements.downloadUpdateBtn.addEventListener("click", openUpdateDownload);
     elements.openHistoryRangeBtn.addEventListener("click", openHistoryRange); elements.refreshOverviewBtn.addEventListener("click", () => { renderOverview(); showToast("排班总览已更新"); }); elements.historyRoomFilter.addEventListener("change", renderOverview);
     document.querySelectorAll("[data-performance-range]").forEach((button) => button.addEventListener("click", () => { performanceRangeMode = button.dataset.performanceRange; state.settings.performanceRangeMode = performanceRangeMode; saveState(); renderPerformanceSummary(); }));
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
@@ -89,6 +90,71 @@
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !elements.rangePickerPanel.hidden) closeRangePicker(); });
   }
   function activateTab(name) { document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name)); document.querySelectorAll("[data-panel]").forEach((panel) => { const active = panel.dataset.panel === name; panel.hidden = !active; panel.classList.toggle("active", active); }); if (name === "history") renderOverview(); if (name === "performance") renderPerformance(); if (name === "settings") renderScheduleSettings(); if (name === "stats") renderStats(); }
+  async function initializeUpdateUi() {
+    const bridge = window.desktopUpdates;
+    if (!bridge) {
+      elements.currentAppVersion.textContent = "浏览器版";
+      elements.updateStatus.textContent = "仅桌面版支持检查更新";
+      elements.checkUpdateBtn.disabled = true;
+      return;
+    }
+    try {
+      const info = await bridge.getInfo();
+      elements.currentAppVersion.textContent = `v${info.version} · ${info.platform}/${info.arch}`;
+      await checkDesktopUpdate(false);
+    } catch (_error) {
+      elements.currentAppVersion.textContent = "桌面版";
+      elements.updateStatus.textContent = "无法读取当前版本";
+    }
+  }
+  async function checkDesktopUpdate(manual) {
+    const bridge = window.desktopUpdates;
+    if (!bridge) return;
+    elements.checkUpdateBtn.disabled = true;
+    elements.checkUpdateBtn.textContent = "检查中…";
+    elements.downloadUpdateBtn.hidden = true;
+    elements.downloadUpdateBtn.dataset.url = "";
+    elements.updateNotes.hidden = true;
+    elements.updateNotes.textContent = "";
+    elements.updateStatus.textContent = "正在检查 GitHub 最新版本…";
+    try {
+      const result = await bridge.check();
+      renderUpdateResult(result);
+      if (manual && result.status === "up-to-date") showToast("当前已是最新版");
+    } catch (_error) {
+      elements.updateStatus.textContent = "暂时无法检查更新，请稍后重试";
+      if (manual) showToast("检查更新失败", true);
+    } finally {
+      elements.checkUpdateBtn.disabled = false;
+      elements.checkUpdateBtn.textContent = "检查更新";
+    }
+  }
+  function renderUpdateResult(result) {
+    const statusText = {
+      "up-to-date": `当前已是最新版 v${result.currentVersion}`,
+      "no-release": "GitHub 尚未发布可用版本",
+      "error": result.message || "暂时无法检查更新",
+      "asset-missing": `发现新版本 v${result.latestVersion}，当前系统的文件尚未上传`,
+      "update-available": `发现新版本 v${result.latestVersion}`
+    };
+    elements.updateStatus.textContent = statusText[result.status] || "更新状态未知";
+    if (result.notes && ["asset-missing", "update-available"].includes(result.status)) {
+      elements.updateNotes.textContent = result.notes;
+      elements.updateNotes.hidden = false;
+    }
+    const targetUrl = result.status === "update-available" ? result.downloadUrl : result.status === "asset-missing" ? result.releaseUrl : "";
+    if (targetUrl) {
+      elements.downloadUpdateBtn.dataset.url = targetUrl;
+      elements.downloadUpdateBtn.textContent = result.status === "update-available" ? "前往下载" : "查看发布页";
+      elements.downloadUpdateBtn.hidden = false;
+    }
+  }
+  async function openUpdateDownload() {
+    const url = elements.downloadUpdateBtn.dataset.url;
+    if (!url || !window.desktopUpdates) return;
+    const result = await window.desktopUpdates.openExternal(url);
+    if (!result?.ok) showToast(result?.message || "无法打开下载页面", true);
+  }
   function currentDates() { try { return Logic.dateRange(selectedStart, selectedEnd, 14); } catch (error) { return []; } }
   function renderRangePickerButton() { if (elements.rangePickerText) elements.rangePickerText.textContent = `${formatShortDate(selectedStart)} — ${formatShortDate(selectedEnd)}`; }
   function setRange(start, end, notify = true) {

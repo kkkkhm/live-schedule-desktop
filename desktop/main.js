@@ -1,7 +1,8 @@
 "use strict";
 
-const { app, BrowserWindow, dialog } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const path = require("node:path");
+const Updates = require("./updates");
 
 const APP_TITLE = "直播排班工具";
 let mainWindow = null;
@@ -49,6 +50,20 @@ function createWindow() {
   });
 }
 
+function registerUpdateHandlers() {
+  ipcMain.handle("updates:get-info", () => ({ version: app.getVersion(), platform: process.platform, arch: process.arch }));
+  ipcMain.handle("updates:check", () => Updates.checkForUpdates({ currentVersion: app.getVersion(), platform: process.platform, arch: process.arch }));
+  ipcMain.handle("updates:open-external", async (_event, url) => {
+    if (!Updates.isAllowedExternalUrl(url)) return { ok: false, message: "已阻止不受信任的更新地址" };
+    try {
+      await shell.openExternal(url);
+      return { ok: true };
+    } catch (_error) {
+      return { ok: false, message: "无法打开下载页面" };
+    }
+  });
+}
+
 const hasLock = app.requestSingleInstanceLock();
 if (!hasLock) {
   app.quit();
@@ -58,7 +73,7 @@ if (!hasLock) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
   });
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => { registerUpdateHandlers(); createWindow(); });
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 }
