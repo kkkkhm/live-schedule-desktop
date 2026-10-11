@@ -141,6 +141,22 @@ main { padding: 24px 36px 48px; }
 .template-ok { color: var(--success); }
 .template-error { color: var(--danger); }
 .auto-schedule-status { min-height: 18px; margin: 0; padding: 0 15px 13px; color: var(--muted); font-size: 12px; }
+.template-summary { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; white-space: pre-line; }
+
+.settings-card { margin-top: 18px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); }
+.settings-card:first-of-type { margin-top: 0; }
+.settings-card h3 { margin: 0 0 14px; font-size: 16px; }
+.settings-card h3 small { margin-left: 5px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.settings-form { display: grid; align-items: end; gap: 12px; }
+.settings-form > label:not(.check-label) { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.settings-form input:not([type="checkbox"]), .settings-form select { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid var(--border-strong); border-radius: 6px; background: white; }
+.targets-form { grid-template-columns: repeat(3, minmax(180px, 1fr)) auto; }
+.shift-form { grid-template-columns: 1.25fr 1.2fr .75fr .75fr .8fr .65fr auto; }
+.group-form { grid-template-columns: 1.2fr 1fr 1fr 1.1fr auto; }
+.part-time-form { grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; max-width: 760px; }
+.setting-check { min-height: 38px; align-self: end; padding-bottom: 8px; color: var(--text); font-size: 12px; }
+.settings-form .form-error { grid-column: 1 / -1; }
+.settings-actions { flex-wrap: wrap; min-width: 255px; }
 
 .schedule-scroll { overflow-x: auto; border: 1px solid var(--border-strong); border-radius: 8px; }
 .schedule-table { border-collapse: collapse; table-layout: fixed; width: 100%; min-width: 1460px; }
@@ -278,6 +294,8 @@ main { padding: 24px 36px 48px; }
   .app-header { padding-left: 22px; padding-right: 22px; }
   main { padding-left: 22px; padding-right: 22px; }
   .ranking-grid { grid-template-columns: 1fr; }
+  .targets-form, .shift-form, .group-form { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+  .settings-form .form-actions { align-self: end; }
 }
 
 @media (max-width: 900px) {

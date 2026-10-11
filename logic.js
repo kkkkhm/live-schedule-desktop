@@ -59,6 +59,13 @@
     return (end - start) / 60;
   }
 
+  function addHoursToTime(value, hours) {
+    const start = timeToMinutes(value);
+    if (start === null || !Number.isFinite(hours)) return "";
+    const minutes = ((start + Math.round(hours * 60)) % (24 * 60) + 24 * 60) % (24 * 60);
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  }
+
   function parsePerformanceAmount(value) {
     const text = String(value ?? "").trim();
     if (!text) return { valid: true, value: null };
@@ -330,6 +337,93 @@
     };
   }
 
+  function planDayFromConfiguration(groups, shiftDefinitions, targets, leavePersonIds, partTimeGroup) {
+    const leave = new Set(leavePersonIds || []);
+    const shifts = (shiftDefinitions || []).filter((shift) => shift && shift.active !== false).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    const activeGroups = (groups || []).filter((group) => group && group.active !== false && group.hostId && group.coHostId && !leave.has(group.hostId) && !leave.has(group.coHostId)).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    const occupied = new Set();
+    const assignments = [];
+    activeGroups.forEach((group) => {
+      const preferred = shifts.find((shift) => shift.key === group.defaultShiftId && !occupied.has(shift.key));
+      const shift = preferred || shifts.find((item) => !occupied.has(item.key));
+      if (!shift) return;
+      occupied.add(shift.key);
+      assignments.push({ ...group, groupType: "formal", shiftKey: shift.key });
+    });
+    const minimumShiftCount = Math.max(1, Math.min(Number(targets?.minimumShiftCount) || 1, shifts.length || 1));
+    const partTimeReady = Boolean(partTimeGroup?.hostId && partTimeGroup?.coHostId);
+    const partTimeConflict = partTimeReady && (leave.has(partTimeGroup.hostId) || leave.has(partTimeGroup.coHostId));
+    if (assignments.length < minimumShiftCount && partTimeReady && !partTimeConflict) {
+      const shift = shifts.find((item) => !occupied.has(item.key));
+      if (shift) {
+        occupied.add(shift.key);
+        assignments.push({ ...partTimeGroup, id: partTimeGroup.id || "part-time-group", name: partTimeGroup.name || "固定兼职班组", active: true, groupType: "partTime", shiftKey: shift.key });
+      }
+    }
+    const byKey = new Map(shifts.map((shift) => [shift.key, shift]));
+    let baseHours = assignments.reduce((sum, group) => { const shift = byKey.get(group.shiftKey); return sum + durationHours(shift?.startTime, shift?.endTime); }, 0);
+    const minimumTotalHours = Math.max(0, Number(targets?.minimumTotalHours) || 0);
+    const defaultOvertimeHours = Math.max(0, Number(targets?.defaultOvertimeHours) || 0);
+    let remainingHours = Math.max(0, minimumTotalHours - baseHours);
+    const overtimeCandidates = assignments.filter((group) => byKey.get(group.shiftKey)?.allowOvertime).sort((a, b) => {
+      const first = byKey.get(a.shiftKey); const second = byKey.get(b.shiftKey);
+      return (first.overtimePriority || 999) - (second.overtimePriority || 999) || (first.order || 0) - (second.order || 0);
+    });
+    overtimeCandidates.forEach((group) => {
+      if (remainingHours <= 0 || defaultOvertimeHours <= 0) return;
+      const shift = byKey.get(group.shiftKey); const overtimeHours = Math.min(defaultOvertimeHours, remainingHours);
+      group.overtimeStartTime = shift.endTime;
+      group.overtimeEndTime = addHoursToTime(shift.endTime, overtimeHours);
+      group.overtimeHours = overtimeHours;
+      remainingHours = Math.max(0, remainingHours - overtimeHours);
+    });
+    const overtimeHours = assignments.reduce((sum, group) => sum + (group.overtimeHours || 0), 0);
+    const missingShiftCount = Math.max(0, minimumShiftCount - assignments.length);
+    return {
+      assignments,
+      availableFormalGroupCount: activeGroups.length,
+      completeCount: assignments.length,
+      minimumShiftCount,
+      baseHours,
+      overtimeHours,
+      totalHours: baseHours + overtimeHours,
+      minimumTotalHours,
+      missingShiftCount,
+      missingHours: remainingHours,
+      partTimeUsed: assignments.some((group) => group.groupType === "partTime"),
+      partTimeConflict,
+      needsManual: missingShiftCount > 0 || remainingHours > 0
+    };
+  }
+
+  function evaluateDayTargets(day, shiftDefinitions, targets) {
+    const record = day && typeof day === "object" ? day : {};
+    const shifts = (shiftDefinitions || []).filter((shift) => shift && shift.active !== false);
+    const complete = shifts.filter((shift) => {
+      const slot = record[shift.key];
+      return Boolean(slot?.hostId && slot?.coHostId && durationHours(slot.startTime, slot.endTime));
+    });
+    const leaveIds = new Set((record.leavePeople || []).map((item) => item.personId));
+    const leaveConflictKeys = complete.filter((shift) => leaveIds.has(record[shift.key].hostId) || leaveIds.has(record[shift.key].coHostId)).map((shift) => shift.key);
+    const baseHours = complete.reduce((sum, shift) => sum + durationHours(record[shift.key].startTime, record[shift.key].endTime), 0);
+    const overtimeHours = complete.reduce((sum, shift) => sum + durationHours(record[shift.key].overtimeStartTime, record[shift.key].overtimeEndTime), 0);
+    const minimumShiftCount = Math.max(1, Number(targets?.minimumShiftCount) || 1);
+    const minimumTotalHours = Math.max(0, Number(targets?.minimumTotalHours) || 0);
+    return {
+      completeKeys: complete.map((shift) => shift.key),
+      completeCount: complete.length,
+      baseHours,
+      overtimeHours,
+      totalHours: baseHours + overtimeHours,
+      minimumShiftCount,
+      minimumTotalHours,
+      missingShiftCount: Math.max(0, minimumShiftCount - complete.length),
+      missingHours: Math.max(0, minimumTotalHours - baseHours - overtimeHours),
+      leaveConflictKeys,
+      hasLeaveConflict: leaveConflictKeys.length > 0
+    };
+  }
+
   function evaluateDaySchedule(day, shiftKeys = ["morning", "afternoon", "evening", "secondary"]) {
     const record = day && typeof day === "object" ? day : {};
     const isComplete = (slot) => Boolean(slot?.hostId && slot?.coHostId && durationHours(slot.startTime, slot.endTime));
@@ -417,11 +511,44 @@
     };
   }
 
+  function defaultShiftDefinitions(primaryRoomId = "", secondaryRoomId = "") {
+    return [
+      { key: "morning", label: "主号早班", roomId: primaryRoomId, startTime: "08:00", endTime: "12:30", active: true, allowOvertime: true, overtimePriority: 1, order: 1 },
+      { key: "afternoon", label: "主号中班", roomId: primaryRoomId, startTime: "13:00", endTime: "17:30", active: true, allowOvertime: true, overtimePriority: 2, order: 2 },
+      { key: "evening", label: "主号晚班", roomId: primaryRoomId, startTime: "19:00", endTime: "23:30", active: true, allowOvertime: false, overtimePriority: 3, order: 3 },
+      { key: "secondary", label: "副直播间班次", roomId: secondaryRoomId || primaryRoomId, startTime: "13:30", endTime: "18:00", active: true, allowOvertime: false, overtimePriority: 4, order: 4 }
+    ];
+  }
+
+  function upgradeToV5(output) {
+    output.settings = output.settings && typeof output.settings === "object" ? output.settings : {};
+    const activeRooms = (output.rooms || []).filter((room) => room.active !== false);
+    const primaryRoomId = output.settings.lastRoomKey || activeRooms[0]?.id || Object.keys(output.schedules || {})[0] || "";
+    const secondaryRoomId = activeRooms.find((room) => room.id !== primaryRoomId)?.id || primaryRoomId;
+    if (!Array.isArray(output.settings.shiftDefinitions) || !output.settings.shiftDefinitions.length) output.settings.shiftDefinitions = defaultShiftDefinitions(primaryRoomId, secondaryRoomId);
+    else output.settings.shiftDefinitions = output.settings.shiftDefinitions.slice(0, 12).map((shift, index) => ({ ...shift, key: shift.key || `shift-${index + 1}`, label: shift.label || `班次 ${index + 1}`, roomId: shift.roomId || primaryRoomId, active: shift.active !== false, allowOvertime: Boolean(shift.allowOvertime), overtimePriority: Number(shift.overtimePriority) || index + 1, order: Number(shift.order) || index + 1 }));
+    if (!Array.isArray(output.settings.formalGroups)) {
+      const storedTemplates = output.settings.groupTemplates && typeof output.settings.groupTemplates === "object" ? output.settings.groupTemplates : {};
+      const source = storedTemplates[primaryRoomId] || Object.values(storedTemplates)[0] || [];
+      output.settings.formalGroups = source.slice(0, 12).map((group, index) => ({ id: group.id || `group-${index + 1}`, name: group.name || `班组 ${index + 1}`, hostId: group.hostId || "", coHostId: group.coHostId || "", defaultShiftId: group.shiftKey || output.settings.shiftDefinitions[index]?.key || output.settings.shiftDefinitions[0]?.key || "", active: true, order: index + 1 }));
+    }
+    if (!output.settings.formalGroups.length) output.settings.formalGroups = output.settings.shiftDefinitions.slice(0, 4).map((shift, index) => ({ id: `group-${index + 1}`, name: `班组 ${index + 1}`, hostId: "", coHostId: "", defaultShiftId: shift.key, active: true, order: index + 1 }));
+    else output.settings.formalGroups = output.settings.formalGroups.slice(0, 12).map((group, index) => ({ ...group, id: group.id || `group-${index + 1}`, name: group.name || `班组 ${index + 1}`, defaultShiftId: group.defaultShiftId || group.shiftKey || output.settings.shiftDefinitions[index]?.key || "", active: group.active !== false, order: Number(group.order) || index + 1 }));
+    if (!output.settings.partTimeGroup || typeof output.settings.partTimeGroup !== "object") {
+      const stored = output.settings.partTimeGroupTemplates && typeof output.settings.partTimeGroupTemplates === "object" ? output.settings.partTimeGroupTemplates : {};
+      const source = stored[primaryRoomId] || Object.values(stored)[0] || {};
+      output.settings.partTimeGroup = { id: source.id || "part-time-group", name: "固定兼职班组", hostId: source.hostId || "", coHostId: source.coHostId || "" };
+    }
+    output.settings.scheduleTargets = { minimumShiftCount: 4, minimumTotalHours: 18, defaultOvertimeHours: 1.5, ...(output.settings.scheduleTargets || {}) };
+    output.version = 5;
+    return output;
+  }
+
   function migrateState(input) {
     if (!input || !Array.isArray(input.people) || !input.schedules || typeof input.schedules !== "object") {
       throw new Error("数据格式无效");
     }
-    if (![1, 2, 3, 4].includes(input.version)) throw new Error("不支持的数据版本");
+    if (![1, 2, 3, 4, 5].includes(input.version)) throw new Error("不支持的数据版本");
     const output = JSON.parse(JSON.stringify(input));
     output.rooms = Array.isArray(output.rooms) ? output.rooms : [];
     output.settings = output.settings && typeof output.settings === "object" ? output.settings : {};
@@ -429,12 +556,12 @@
       ...person,
       employmentType: person.employmentType === "partTime" ? "partTime" : "formal"
     }));
-    if (output.version === 4) {
+    if (output.version >= 4) {
       Object.values(output.schedules).forEach((roomSchedule) => Object.values(roomSchedule?.days || {}).forEach((day) => {
         day.leavePeople = Array.isArray(day.leavePeople) ? day.leavePeople : [];
         day.leaveNote = day.leaveNote || "";
       }));
-      return output;
+      return upgradeToV5(output);
     }
 
     if (output.version < 3) Object.values(output.schedules).forEach((week) => {
@@ -508,7 +635,7 @@
     });
     output.version = 4;
     output.schedules = v4Schedules;
-    return output;
+    return upgradeToV5(output);
   }
 
   return {
@@ -520,6 +647,7 @@
     getWeekDates,
     timeToMinutes,
     durationHours,
+    addHoursToTime,
     parsePerformanceAmount,
     performanceRangeBounds,
     calculatePerformanceRankings,
@@ -535,7 +663,9 @@
     targetWeekAvailable,
     copyWeekRecord,
     planDayFromTemplates,
+    planDayFromConfiguration,
     evaluateDaySchedule,
+    evaluateDayTargets,
     clearScheduleDays,
     migrateState
   };

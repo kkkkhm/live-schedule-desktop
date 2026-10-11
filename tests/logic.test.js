@@ -28,6 +28,11 @@ test("calculates ordinary and overnight hours", () => {
   assert.equal(Logic.durationHours("08:00", "08:00"), 0);
 });
 
+test("adds fractional hours across midnight", () => {
+  assert.equal(Logic.addHoursToTime("12:30", 1.5), "14:00");
+  assert.equal(Logic.addHoursToTime("23:30", 1.5), "01:00");
+});
+
 test("validates performance amounts with at most two decimals", () => {
   assert.deepEqual(Logic.parsePerformanceAmount(""), { valid: true, value: null });
   assert.deepEqual(Logic.parsePerformanceAmount("10000.50"), { valid: true, value: 10000.5 });
@@ -141,6 +146,42 @@ test("does not use the fixed part-time group when either member is on leave", ()
   assert.deepEqual(plan.missingShiftKeys, ["morning"]);
 });
 
+test("plans configurable shifts, fills one part-time shift, then adds overtime by priority", () => {
+  const shifts = [
+    { key: "a", label: "A", startTime: "08:00", endTime: "12:00", active: true, allowOvertime: true, overtimePriority: 2, order: 1 },
+    { key: "b", label: "B", startTime: "13:00", endTime: "17:00", active: true, allowOvertime: true, overtimePriority: 1, order: 2 },
+    { key: "c", label: "C", startTime: "18:00", endTime: "22:00", active: true, allowOvertime: false, overtimePriority: 3, order: 3 }
+  ];
+  const groups = [
+    { id: "g1", hostId: "h1", coHostId: "c1", defaultShiftId: "a", active: true, order: 1 },
+    { id: "g2", hostId: "h2", coHostId: "c2", defaultShiftId: "b", active: true, order: 2 },
+    { id: "g3", hostId: "h3", coHostId: "c3", defaultShiftId: "c", active: true, order: 3 }
+  ];
+  const plan = Logic.planDayFromConfiguration(groups, shifts, { minimumShiftCount: 3, minimumTotalHours: 13.25, defaultOvertimeHours: 1.5 }, ["h3"], { id: "pt", hostId: "ph", coHostId: "pc" });
+  assert.equal(plan.completeCount, 3);
+  assert.equal(plan.partTimeUsed, true);
+  assert.equal(plan.totalHours, 13.25);
+  assert.equal(plan.needsManual, false);
+  const priorityOvertime = plan.assignments.find((item) => item.shiftKey === "b");
+  assert.deepEqual([priorityOvertime.overtimeStartTime, priorityOvertime.overtimeEndTime, priorityOvertime.overtimeHours], ["17:00", "18:15", 1.25]);
+});
+
+test("reports manual shortages when shifts or overtime capacity cannot reach targets", () => {
+  const shifts = [{ key: "a", startTime: "08:00", endTime: "12:00", active: true, allowOvertime: true, overtimePriority: 1, order: 1 }, { key: "b", startTime: "13:00", endTime: "17:00", active: true, allowOvertime: false, order: 2 }];
+  const groups = [{ id: "g1", hostId: "h1", coHostId: "c1", defaultShiftId: "a", active: true }];
+  const plan = Logic.planDayFromConfiguration(groups, shifts, { minimumShiftCount: 2, minimumTotalHours: 10, defaultOvertimeHours: 1.5 }, [], null);
+  assert.equal(plan.missingShiftCount, 1);
+  assert.equal(plan.missingHours, 4.5);
+  assert.equal(plan.needsManual, true);
+});
+
+test("re-evaluates configurable minimum counts and total hours", () => {
+  const shifts = [{ key: "a", active: true }, { key: "b", active: true }];
+  const day = { leavePeople: [], a: { hostId: "h1", coHostId: "c1", startTime: "08:00", endTime: "12:00", overtimeStartTime: "12:00", overtimeEndTime: "13:00" } };
+  const result = Logic.evaluateDayTargets(day, shifts, { minimumShiftCount: 2, minimumTotalHours: 6 });
+  assert.deepEqual([result.completeCount, result.totalHours, result.missingShiftCount, result.missingHours], [1, 5, 1, 1]);
+});
+
 test("re-evaluates guidance from the current schedule instead of stale generation metadata", () => {
   const day = {
     leavePeople: [{ personId: "old-part-time" }],
@@ -182,15 +223,17 @@ test("warns when a person on leave is scheduled", () => {
   assert.equal(Logic.findConflicts(week, people).some((item) => item.type === "leave-scheduled"), true);
 });
 
-test("migrates V1 data to unassigned V4 without losing schedules", () => {
+test("migrates V1 data to unassigned V5 without losing schedules", () => {
   const v1 = { version: 1, people: [{ id: "a", name: "甲", active: true }], schedules: { "2026-10-05": { monday: { morning: { hostId: "a" } } } } };
   const result = Logic.migrateState(v1);
-  assert.equal(result.version, 4);
+  assert.equal(result.version, 5);
   assert.deepEqual(result.rooms, []);
   assert.equal(result.people[0].employmentType, "formal");
   assert.deepEqual(result.schedules.unassigned.days["2026-10-05"].leavePeople, []);
   assert.equal(result.schedules.unassigned.days["2026-10-05"].morning.hostId, "a");
   assert.equal(result.schedules.unassigned.roomNameSnapshot, "未指定直播间");
+  assert.equal(result.settings.shiftDefinitions.length, 4);
+  assert.deepEqual(result.settings.scheduleTargets, { minimumShiftCount: 4, minimumTotalHours: 18, defaultOvertimeHours: 1.5 });
 });
 
 test("migrates a single-room V2 week into that room", () => {
@@ -198,7 +241,7 @@ test("migrates a single-room V2 week into that room", () => {
     "2026-10-05": { monday: { morning: { roomId: "r1", roomNameSnapshot: "一号间", roomAccountSnapshot: "room-1", hostId: "a", startTime: "08:00", endTime: "13:00" }, leavePeople: [] } }
   } };
   const result = Logic.migrateState(v2);
-  assert.equal(result.version, 4);
+  assert.equal(result.version, 5);
   assert.equal(result.schedules.r1.roomId, "r1");
   assert.equal(result.schedules.r1.days["2026-10-05"].morning.roomId, undefined);
 });

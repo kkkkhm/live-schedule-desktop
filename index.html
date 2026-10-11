@@ -58,6 +58,7 @@
       <button class="tab active" data-tab="schedule">周排班</button>
       <button class="tab" data-tab="history">历史记录</button>
       <button class="tab" data-tab="performance">业绩排名</button>
+      <button class="tab" data-tab="settings">排班设置</button>
       <button class="tab" data-tab="rooms">直播间管理</button>
       <button class="tab" data-tab="people">人员管理</button>
       <button class="tab" data-tab="stats">时长统计</button>
@@ -80,10 +81,11 @@
         </div>
       </div>
       <details id="autoScheduler" class="auto-scheduler">
-        <summary>智能排班 · 四组正式班组＋固定兼职班组</summary>
+        <summary>智能排班 · 自定义班次与班组</summary>
         <div class="auto-scheduler-intro">
-          <p>先确定每日休假人员，再配置四组正式班组和一组固定兼职班组。系统会自动补班并在两组场景写入加班时间。</p>
+          <p>系统先按全局配置排班，班次数不足时优先补入固定兼职班组，直播总时长不足时再自动加班。</p>
           <div class="auto-scheduler-actions">
+            <button id="openScheduleSettingsBtn" class="button ghost" type="button">打开排班设置</button>
             <button id="generateScheduleBtn" class="button primary" type="button">生成区间排班</button>
             <button id="refreshGuidanceBtn" class="button ghost" type="button">刷新排班提示</button>
           </div>
@@ -161,6 +163,62 @@
           </div>
         </section>
       </div>
+    </section>
+
+    <section id="settingsPanel" class="panel" data-panel="settings" hidden>
+      <div class="panel-heading">
+        <div>
+          <h2>排班设置</h2>
+          <p>全局管理班次、正式班组、固定兼职班组和智能排班最低目标。</p>
+        </div>
+      </div>
+      <section class="settings-card">
+        <h3>每日最低目标</h3>
+        <form id="scheduleTargetsForm" class="settings-form targets-form">
+          <label><span>最小班次数</span><input id="minimumShiftCountInput" type="number" min="1" max="12" step="1" required></label>
+          <label><span>最小直播总时长（小时）</span><input id="minimumTotalHoursInput" type="number" min="0" max="288" step="0.5" required></label>
+          <label><span>默认自动加班时长（小时）</span><input id="defaultOvertimeHoursInput" type="number" min="0.5" max="12" step="0.5" required></label>
+          <button class="button primary" type="submit">保存最低目标</button>
+          <p id="scheduleTargetsError" class="form-error" role="alert"></p>
+        </form>
+      </section>
+      <section class="settings-card">
+        <h3>班次管理 <small>最多12个</small></h3>
+        <form id="shiftDefinitionForm" class="settings-form shift-form">
+          <input id="shiftDefinitionIdInput" type="hidden">
+          <label><span>班次名称</span><input id="shiftDefinitionNameInput" type="text" maxlength="30" required placeholder="例如：主号早班"></label>
+          <label><span>默认直播间</span><select id="shiftDefinitionRoomInput" required></select></label>
+          <label><span>开始时间</span><input id="shiftDefinitionStartInput" type="time" required></label>
+          <label><span>结束时间</span><input id="shiftDefinitionEndInput" type="time" required></label>
+          <label class="check-label setting-check"><input id="shiftDefinitionOvertimeInput" type="checkbox"> 允许自动加班</label>
+          <label><span>加班优先级</span><input id="shiftDefinitionPriorityInput" type="number" min="1" max="12" step="1" value="1"></label>
+          <div class="form-actions"><button id="saveShiftDefinitionBtn" class="button primary" type="submit">新增班次</button><button id="cancelShiftDefinitionBtn" class="button ghost" type="button" hidden>取消编辑</button></div>
+          <p id="shiftDefinitionError" class="form-error" role="alert"></p>
+        </form>
+        <div class="people-table-wrap"><table class="data-table"><thead><tr><th>顺序</th><th>班次名称</th><th>默认直播间</th><th>时间</th><th>自动加班</th><th>状态</th><th>操作</th></tr></thead><tbody id="shiftDefinitionsTableBody"></tbody></table></div>
+      </section>
+      <section class="settings-card">
+        <h3>正式班组管理 <small>最多12个</small></h3>
+        <form id="formalGroupForm" class="settings-form group-form">
+          <input id="formalGroupIdInput" type="hidden">
+          <label><span>班组名称</span><input id="formalGroupNameInput" type="text" maxlength="30" required placeholder="例如：班组 1"></label>
+          <label><span>主播</span><select id="formalGroupHostInput" required></select></label>
+          <label><span>副播</span><select id="formalGroupCoHostInput" required></select></label>
+          <label><span>默认班次</span><select id="formalGroupShiftInput" required></select></label>
+          <div class="form-actions"><button id="saveFormalGroupBtn" class="button primary" type="submit">新增班组</button><button id="cancelFormalGroupBtn" class="button ghost" type="button" hidden>取消编辑</button></div>
+          <p id="formalGroupError" class="form-error" role="alert"></p>
+        </form>
+        <div class="people-table-wrap"><table class="data-table"><thead><tr><th>顺序</th><th>班组名称</th><th>主播</th><th>副播</th><th>默认班次</th><th>状态</th><th>操作</th></tr></thead><tbody id="formalGroupsTableBody"></tbody></table></div>
+      </section>
+      <section class="settings-card part-time-settings">
+        <h3>固定兼职班组</h3>
+        <form id="partTimeGroupForm" class="settings-form part-time-form">
+          <label><span>主播</span><select id="partTimeGroupHostInput"></select></label>
+          <label><span>副播</span><select id="partTimeGroupCoHostInput"></select></label>
+          <button class="button primary" type="submit">保存兼职班组</button>
+          <p id="partTimeGroupError" class="form-error" role="alert"></p>
+        </form>
+      </section>
     </section>
 
     <section id="roomsPanel" class="panel" data-panel="rooms" hidden>
