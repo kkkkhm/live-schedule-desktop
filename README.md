@@ -2,6 +2,18 @@
 
 这是一个纯本地网页工具，用于按任意 1–14 天日期区间安排直播间、主播和副播，并分别统计普通直播时长、加班时长和总时长。
 
+## 独立桌面版
+
+桌面版使用 Electron 完全离线运行，最终用户不需要安装 Node.js，也不需要启动本地服务器。
+
+- Windows：运行 `npm run pack:win` 生成绿色便携版 EXE。
+- macOS：在 macOS 环境运行 `npm run pack:mac`，分别生成 Intel（x64）和 Apple Silicon（arm64）未签名 ZIP。
+- 自动构建：推送 `desktop-v*` 标签或手动运行 GitHub Actions 中的 `Build desktop apps`。
+
+开发构建环境先执行 `npm install`。Windows 产物位于 `desktop-dist/LiveSchedule-Windows-1.0.0-x64.exe`。macOS 首次打开未签名应用时，如系统阻止运行，请进入“系统设置 → 隐私与安全性”，在安全提示处选择“仍要打开”。
+
+浏览器版与桌面版的数据目录相互独立。迁移时先在旧版本点击“导出备份”，再在桌面版点击“导入备份”。
+
 ## 使用方法
 
 1. 双击 `index.html`。

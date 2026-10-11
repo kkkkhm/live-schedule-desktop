@@ -1,0 +1,65 @@
+{
+  "name": "live-schedule-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "离线运行的直播排班桌面工具",
+  "author": "直播周排班工具",
+  "license": "UNLICENSED",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node tests/logic.test.js && node tests/desktop.test.js",
+    "pack:win": "electron-builder --win portable --x64",
+    "pack:mac": "electron-builder --mac zip --x64 --arm64"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "cn.local.live-schedule",
+    "productName": "直播周排班工具",
+    "asar": true,
+    "directories": {
+      "output": "desktop-dist"
+    },
+    "files": [
+      "index.html",
+      "styles.css",
+      "app.js",
+      "logic.js",
+      "vendor/**/*",
+      "desktop/**/*",
+      "README.md",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "LiveSchedule-Windows-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "LiveSchedule-Windows-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "identity": null,
+      "category": "public.app-category.productivity",
+      "artifactName": "LiveSchedule-macOS-${version}-${arch}.${ext}"
+    }
+  }
+}
