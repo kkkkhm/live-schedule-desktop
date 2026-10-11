@@ -1,4 +1,6 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const Logic = require("../logic.js");
 
 function test(name, fn) {
@@ -61,6 +63,19 @@ test("uses competition ranking for equal performance totals", () => {
     secondary: { hostId: "d", performanceAmount: 100 }
   } };
   assert.deepEqual(Logic.calculatePerformanceRankings(days, [], ["morning", "afternoon", "evening", "secondary"]).hosts.map((row) => row.rank), [1, 2, 2, 4]);
+});
+
+test("uses a date-column performance matrix with ranking-only range controls", () => {
+  const root = path.join(__dirname, "..");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+  assert.match(html, /id="performanceTableHead"/);
+  assert.match(html, /id="performanceEntryRangeLabel"/);
+  assert.match(html, />排名范围</);
+  assert.match(app, /function renderPerformanceMatrix\(\)/);
+  assert.match(app, /saveState\(\); renderPerformanceSummary\(\);/);
+  assert.match(styles, /\.performance-table \.performance-shift-label \{ position: sticky;/);
 });
 
 test("calculates live hours without distinguishing roles", () => {

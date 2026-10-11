@@ -126,21 +126,26 @@
       <div class="panel-heading">
         <div>
           <h2>业绩排名</h2>
-          <p id="performanceRangeLabel">按排班班次录入业绩，主播与副播分别排名。</p>
+          <p>按当前排班录入班次业绩，主播与副播分别排名。</p>
         </div>
       </div>
-      <div class="performance-toolbar" aria-label="业绩统计范围">
-        <span>统计范围</span>
+      <div class="performance-section-heading">
+        <h3>当前区间业绩录入</h3>
+        <span id="performanceEntryRangeLabel"></span>
+      </div>
+      <div class="people-table-wrap performance-table-wrap">
+        <table class="data-table performance-table">
+          <thead id="performanceTableHead"></thead>
+          <tbody id="performanceTableBody"></tbody>
+        </table>
+      </div>
+      <div class="performance-toolbar" aria-label="业绩排名统计范围">
+        <span>排名范围</span>
         <button class="button performance-range active" type="button" data-performance-range="current">当前区间</button>
         <button class="button performance-range" type="button" data-performance-range="30d">近30天</button>
         <button class="button performance-range" type="button" data-performance-range="3m">近3个月</button>
         <button class="button performance-range" type="button" data-performance-range="all">全部</button>
-      </div>
-      <div class="people-table-wrap performance-table-wrap">
-        <table class="data-table performance-table">
-          <thead><tr><th>日期</th><th>星期</th><th>班次</th><th>直播间</th><th>主播</th><th>副播</th><th>业绩金额（元）</th><th>状态</th></tr></thead>
-          <tbody id="performanceTableBody"></tbody>
-        </table>
+        <strong id="performanceRangeLabel"></strong>
       </div>
       <div class="ranking-grid">
         <section class="ranking-card">

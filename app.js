@@ -40,7 +40,7 @@
       rangePickerBtn: byId("rangePickerBtn"), rangePickerText: byId("rangePickerText"), rangePickerPanel: byId("rangePickerPanel"), calendarMonths: byId("calendarMonths"), calendarPrompt: byId("calendarPrompt"), calendarSelectionSummary: byId("calendarSelectionSummary"), previousMonthBtn: byId("previousMonthBtn"), nextMonthBtn: byId("nextMonthBtn"), closeRangePickerBtn: byId("closeRangePickerBtn"), weekRangeLabel: byId("weekRangeLabel"), statsRangeLabel: byId("statsRangeLabel"), saveStatus: byId("saveStatus"),
       scheduleHead: byId("scheduleHead"), scheduleBody: byId("scheduleBody"), scheduleRoomSelect: byId("scheduleRoomSelect"), saveScheduleBtn: byId("saveScheduleBtn"), clearScheduleBtn: byId("clearScheduleBtn"), scheduleHint: byId("scheduleHint"), scheduleEmptyState: byId("scheduleEmptyState"), scheduleScroll: document.querySelector(".schedule-scroll"), autoScheduler: byId("autoScheduler"), groupTemplateGrid: byId("groupTemplateGrid"), generateScheduleBtn: byId("generateScheduleBtn"), refreshGuidanceBtn: byId("refreshGuidanceBtn"), autoScheduleStatus: byId("autoScheduleStatus"),
       previousWeekBtn: byId("previousWeekBtn"), nextWeekBtn: byId("nextWeekBtn"), todayWeekBtn: byId("todayWeekBtn"), historyStartInput: byId("historyStartInput"), historyEndInput: byId("historyEndInput"), historyRoomFilter: byId("historyRoomFilter"), openHistoryRangeBtn: byId("openHistoryRangeBtn"), refreshOverviewBtn: byId("refreshOverviewBtn"), overviewTableBody: byId("overviewTableBody"),
-      performanceRangeLabel: byId("performanceRangeLabel"), performanceTableBody: byId("performanceTableBody"), hostRankingBody: byId("hostRankingBody"), coHostRankingBody: byId("coHostRankingBody"),
+      performanceEntryRangeLabel: byId("performanceEntryRangeLabel"), performanceRangeLabel: byId("performanceRangeLabel"), performanceTableHead: byId("performanceTableHead"), performanceTableBody: byId("performanceTableBody"), hostRankingBody: byId("hostRankingBody"), coHostRankingBody: byId("coHostRankingBody"),
       roomForm: byId("roomForm"), roomIdInput: byId("roomIdInput"), roomNameInput: byId("roomNameInput"), roomAccountInput: byId("roomAccountInput"), saveRoomBtn: byId("saveRoomBtn"), cancelRoomEditBtn: byId("cancelRoomEditBtn"), roomFormError: byId("roomFormError"), roomsTableBody: byId("roomsTableBody"),
       personForm: byId("personForm"), personIdInput: byId("personIdInput"), personNameInput: byId("personNameInput"), canHostInput: byId("canHostInput"), canCoHostInput: byId("canCoHostInput"), employmentTypeInput: byId("employmentTypeInput"), savePersonBtn: byId("savePersonBtn"), cancelPersonEditBtn: byId("cancelPersonEditBtn"), personFormError: byId("personFormError"), peopleTableBody: byId("peopleTableBody"),
       statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), exportJsonBtn: byId("exportJsonBtn"), importJsonBtn: byId("importJsonBtn"), importFileInput: byId("importFileInput"), exportScheduleXlsxBtn: byId("exportScheduleXlsxBtn"), exportScheduleCsvBtn: byId("exportScheduleCsvBtn"), exportStatsCsvBtn: byId("exportStatsCsvBtn"), toast: byId("toast")
@@ -72,7 +72,7 @@
     elements.previousWeekBtn.addEventListener("click", () => shiftRange(-1)); elements.nextWeekBtn.addEventListener("click", () => shiftRange(1)); elements.todayWeekBtn.addEventListener("click", resetRangeToday);
     elements.rangePickerBtn.addEventListener("click", toggleRangePicker); elements.previousMonthBtn.addEventListener("click", () => changeCalendarMonth(-1)); elements.nextMonthBtn.addEventListener("click", () => changeCalendarMonth(1)); elements.closeRangePickerBtn.addEventListener("click", closeRangePicker); elements.scheduleRoomSelect.addEventListener("change", () => selectRoom(elements.scheduleRoomSelect.value)); elements.saveScheduleBtn.addEventListener("click", saveScheduleNow); elements.clearScheduleBtn.addEventListener("click", clearCurrentSchedule); elements.generateScheduleBtn.addEventListener("click", generateRangeSchedule); elements.refreshGuidanceBtn.addEventListener("click", refreshScheduleGuidance);
     elements.openHistoryRangeBtn.addEventListener("click", openHistoryRange); elements.refreshOverviewBtn.addEventListener("click", () => { renderOverview(); showToast("近三月总览已更新"); }); elements.historyRoomFilter.addEventListener("change", renderOverview);
-    document.querySelectorAll("[data-performance-range]").forEach((button) => button.addEventListener("click", () => { performanceRangeMode = button.dataset.performanceRange; state.settings.performanceRangeMode = performanceRangeMode; saveState(); renderPerformance(); }));
+    document.querySelectorAll("[data-performance-range]").forEach((button) => button.addEventListener("click", () => { performanceRangeMode = button.dataset.performanceRange; state.settings.performanceRangeMode = performanceRangeMode; saveState(); renderPerformanceSummary(); }));
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
     elements.roomForm.addEventListener("submit", saveRoom); elements.cancelRoomEditBtn.addEventListener("click", resetRoomForm); elements.personForm.addEventListener("submit", savePerson); elements.cancelPersonEditBtn.addEventListener("click", resetPersonForm);
     elements.exportJsonBtn.addEventListener("click", exportJson); elements.importJsonBtn.addEventListener("click", () => elements.importFileInput.click()); elements.importFileInput.addEventListener("change", importJson); elements.exportScheduleXlsxBtn.addEventListener("click", exportScheduleXlsx); elements.exportScheduleCsvBtn.addEventListener("click", exportScheduleCsv); elements.exportStatsCsvBtn.addEventListener("click", exportStatsCsv);
@@ -284,36 +284,45 @@
   function openHistoryRange() { const roomKey = elements.historyRoomFilter.value; if (!roomKey) return showToast("请选择直播间。", true); try { Logic.dateRange(elements.historyStartInput.value, elements.historyEndInput.value, 14); selectedRoomKey = roomKey; state.settings.lastRoomKey = roomKey; setRange(elements.historyStartInput.value, elements.historyEndInput.value, false); activateTab("schedule"); } catch (error) { showToast(error.message, true); } }
 
   function performanceBounds() { return Logic.performanceRangeBounds(performanceRangeMode, selectedStart, selectedEnd, new Date()); }
-  function performanceEntries(bounds) {
-    const schedule = getRoomSchedule(false); const entries = [];
-    Object.entries(schedule?.days || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([dateKey, day]) => {
-      if ((bounds.start && dateKey < bounds.start) || (bounds.end && dateKey > bounds.end)) return;
-      shifts.forEach((shift) => {
-        const slot = day?.[shift.key]; if (!slot || (!slot.hostId && !slot.coHostId)) return;
-        const room = state.rooms.find((item) => item.id === slot.roomId); const fallback = roomInfo(selectedRoomKey, schedule);
-        entries.push({ dateKey, day, shift, slot, roomName: room?.name || slot.roomNameSnapshot || fallback.name, hostName: state.people.find((person) => person.id === slot.hostId)?.name || slot.hostNameSnapshot || "未安排", coHostName: state.people.find((person) => person.id === slot.coHostId)?.name || slot.coHostNameSnapshot || "未安排" });
-      });
-    });
-    return entries;
-  }
   function renderPerformance() {
-    if (!elements.performanceTableBody) return;
-    document.querySelectorAll("[data-performance-range]").forEach((button) => button.classList.toggle("active", button.dataset.performanceRange === performanceRangeMode));
-    let bounds;
-    try { bounds = performanceBounds(); } catch (error) { elements.performanceRangeLabel.textContent = error.message; return; }
-    const rangeNames = { current: "当前区间", "30d": "近30天", "3m": "近3个月", all: "全部日期" }; const rangeText = bounds.start ? `${formatShortDate(bounds.start)} — ${formatShortDate(bounds.end)}` : "全部已保存日期"; const info = selectedRoomKey ? roomInfo(selectedRoomKey, getRoomSchedule(false)) : null;
-    elements.performanceRangeLabel.textContent = `${rangeNames[performanceRangeMode]}：${rangeText}${info ? ` · ${info.name}` : " · 未选择直播间"}`;
-    elements.performanceTableBody.replaceChildren(); const entries = selectedRoomKey ? performanceEntries(bounds) : [];
-    if (!entries.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 8; cell.textContent = selectedRoomKey ? "此范围暂无已排班班次" : "请先在直播间管理中新增直播间"; row.appendChild(cell); elements.performanceTableBody.appendChild(row); }
-    else entries.forEach((entry) => {
-      const date = Logic.parseLocalDate(entry.dateKey); const row = document.createElement("tr"); row.append(textCell(entry.dateKey), textCell(date ? weekdays[date.getDay()] : ""), textCell(entry.shift.label), textCell(entry.roomName));
-      const hostCell = textCell(entry.hostName); if (!entry.slot.hostId) hostCell.appendChild(missingPersonHint("缺少主播")); const coHostCell = textCell(entry.coHostName); if (!entry.slot.coHostId) coHostCell.appendChild(missingPersonHint("缺少副播")); row.append(hostCell, coHostCell);
-      const amountCell = document.createElement("td"); const amountWrap = document.createElement("div"); amountWrap.className = "performance-amount"; const input = document.createElement("input"); input.type = "number"; input.min = "0"; input.step = "0.01"; input.inputMode = "decimal"; input.placeholder = "输入业绩"; input.ariaLabel = `${entry.dateKey}${entry.shift.label}业绩金额`; input.value = typeof entry.slot.performanceAmount === "number" ? String(entry.slot.performanceAmount) : ""; const error = document.createElement("small"); error.className = "performance-error"; input.addEventListener("input", () => validatePerformanceInput(input, error)); amountWrap.append(input, error); amountCell.appendChild(amountWrap);
-      const statusCell = document.createElement("td"); const status = document.createElement("span"); status.className = `performance-status${typeof entry.slot.performanceAmount === "number" ? " saved" : ""}`; status.textContent = typeof entry.slot.performanceAmount === "number" ? "已保存" : "未录入"; statusCell.appendChild(status); input.addEventListener("change", () => savePerformanceAmount(entry, input, error, status)); row.append(amountCell, statusCell); elements.performanceTableBody.appendChild(row);
-    });
-    renderPerformanceRankings(bounds);
+    if (!elements.performanceTableHead || !elements.performanceTableBody) return;
+    renderPerformanceMatrix();
+    renderPerformanceSummary();
   }
-  function missingPersonHint(text) { const hint = document.createElement("div"); hint.className = "missing-person"; hint.textContent = text; return hint; }
+  function renderPerformanceMatrix() {
+    const dates = currentDates(); const schedule = selectedRoomKey ? getRoomSchedule(false) : null; const fallback = selectedRoomKey ? roomInfo(selectedRoomKey, schedule) : null;
+    elements.performanceEntryRangeLabel.textContent = `${formatShortDate(selectedStart)} — ${formatShortDate(selectedEnd)}${fallback ? ` · ${fallback.name}` : " · 未选择直播间"}`;
+    elements.performanceTableHead.replaceChildren(); elements.performanceTableBody.replaceChildren();
+    const headRow = document.createElement("tr"); const corner = document.createElement("th"); corner.className = "performance-corner"; corner.scope = "col"; corner.textContent = "班次 / 日期"; headRow.appendChild(corner);
+    dates.forEach((date) => { const dateKey = Logic.toIsoDate(date); const cell = document.createElement("th"); cell.scope = "col"; const weekday = document.createElement("strong"); weekday.textContent = weekdays[date.getDay()]; const shortDate = document.createElement("span"); shortDate.textContent = `${date.getMonth() + 1}.${date.getDate()}`; cell.append(weekday, shortDate); if (dateKey === todayStamp()) cell.classList.add("is-today"); headRow.appendChild(cell); });
+    elements.performanceTableHead.appendChild(headRow); elements.performanceTableHead.closest("table").style.minWidth = `${150 + dates.length * 205}px`;
+    shifts.forEach((shift) => {
+      const row = document.createElement("tr"); const label = document.createElement("th"); label.scope = "row"; label.className = `performance-shift-label${shift.key === "secondary" ? " secondary" : ""}`; label.textContent = shift.label; row.appendChild(label);
+      dates.forEach((date) => {
+        const dateKey = Logic.toIsoDate(date); const day = schedule?.days?.[dateKey]; const slot = day?.[shift.key]; const cell = document.createElement("td"); cell.className = "performance-matrix-cell";
+        if (!selectedRoomKey || !slot || (!slot.hostId && !slot.coHostId)) { const empty = document.createElement("span"); empty.className = "performance-empty"; empty.textContent = selectedRoomKey ? "未排班" : "未选择直播间"; cell.appendChild(empty); }
+        else cell.appendChild(buildPerformanceEditor({ dateKey, day, shift, slot, roomName: performanceRoomName(slot, fallback), hostName: performancePersonName(slot.hostId, slot.hostNameSnapshot), coHostName: performancePersonName(slot.coHostId, slot.coHostNameSnapshot) }));
+        row.appendChild(cell);
+      });
+      elements.performanceTableBody.appendChild(row);
+    });
+  }
+  function performanceRoomName(slot, fallback) { return state.rooms.find((item) => item.id === slot.roomId)?.name || slot.roomNameSnapshot || fallback?.name || "未指定直播间"; }
+  function performancePersonName(id, snapshot) { return state.people.find((person) => person.id === id)?.name || snapshot || "未安排"; }
+  function buildPerformanceEditor(entry) {
+    const editor = document.createElement("div"); editor.className = "performance-editor";
+    const room = document.createElement("div"); room.className = "performance-room"; room.textContent = entry.roomName;
+    const people = document.createElement("div"); people.className = "performance-people"; const host = document.createElement("span"); host.textContent = `主播：${entry.hostName}`; if (!entry.slot.hostId) host.classList.add("missing-person"); const coHost = document.createElement("span"); coHost.textContent = `副播：${entry.coHostName}`; if (!entry.slot.coHostId) coHost.classList.add("missing-person"); people.append(host, coHost);
+    const amountRow = document.createElement("div"); amountRow.className = "performance-amount-row"; const currency = document.createElement("span"); currency.textContent = "¥"; const input = document.createElement("input"); input.type = "number"; input.min = "0"; input.step = "0.01"; input.inputMode = "decimal"; input.placeholder = "输入业绩"; input.ariaLabel = `${entry.dateKey}${entry.shift.label}业绩金额`; input.value = typeof entry.slot.performanceAmount === "number" ? String(entry.slot.performanceAmount) : ""; amountRow.append(currency, input);
+    const feedback = document.createElement("div"); feedback.className = "performance-feedback"; const error = document.createElement("small"); error.className = "performance-error"; const status = document.createElement("span"); status.className = `performance-status${typeof entry.slot.performanceAmount === "number" ? " saved" : ""}`; status.textContent = typeof entry.slot.performanceAmount === "number" ? "已保存" : "未录入"; feedback.append(error, status); input.addEventListener("input", () => validatePerformanceInput(input, error)); input.addEventListener("change", () => savePerformanceAmount(entry, input, error, status));
+    editor.append(room, people, amountRow, feedback); return editor;
+  }
+  function renderPerformanceSummary() {
+    document.querySelectorAll("[data-performance-range]").forEach((button) => button.classList.toggle("active", button.dataset.performanceRange === performanceRangeMode));
+    let bounds; try { bounds = performanceBounds(); } catch (error) { elements.performanceRangeLabel.textContent = error.message; return; }
+    const rangeNames = { current: "当前区间", "30d": "近30天", "3m": "近3个月", all: "全部日期" }; const rangeText = bounds.start ? `${formatShortDate(bounds.start)} — ${formatShortDate(bounds.end)}` : "全部已保存日期";
+    elements.performanceRangeLabel.textContent = `${rangeNames[performanceRangeMode]}：${rangeText}`; renderPerformanceRankings(bounds);
+  }
   function validatePerformanceInput(input, error) { const parsed = Logic.parsePerformanceAmount(input.value); input.classList.toggle("is-invalid", !parsed.valid); error.textContent = parsed.valid ? "" : "请输入非负金额，最多两位小数"; return parsed; }
   function savePerformanceAmount(entry, input, error, status) {
     const parsed = validatePerformanceInput(input, error); if (!parsed.valid) { status.className = "performance-status warning"; status.textContent = "未保存"; return; }
