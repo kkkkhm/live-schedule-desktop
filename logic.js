@@ -59,6 +59,68 @@
     return (end - start) / 60;
   }
 
+  function parsePerformanceAmount(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return { valid: true, value: null };
+    if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return { valid: false, value: null };
+    const amount = Number(text);
+    if (!Number.isFinite(amount) || amount < 0) return { valid: false, value: null };
+    return { valid: true, value: Math.round(amount * 100) / 100 };
+  }
+
+  function addMonthsClamped(date, count) {
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + count + 1, 0).getDate();
+    return new Date(date.getFullYear(), date.getMonth() + count, Math.min(date.getDate(), lastDay));
+  }
+
+  function performanceRangeBounds(mode, currentStart, currentEnd, todayValue = new Date()) {
+    if (mode === "all") return { start: "", end: "" };
+    if (mode === "current") {
+      if (!parseLocalDate(currentStart) || !parseLocalDate(currentEnd)) throw new Error("当前日期区间无效");
+      return { start: currentStart, end: currentEnd };
+    }
+    const today = todayValue instanceof Date ? new Date(todayValue.getFullYear(), todayValue.getMonth(), todayValue.getDate()) : parseLocalDate(todayValue);
+    if (!today) throw new Error("统计日期无效");
+    if (mode === "30d") return { start: toIsoDate(addDays(today, -29)), end: toIsoDate(today) };
+    if (mode === "3m") return { start: toIsoDate(addMonthsClamped(today, -3)), end: toIsoDate(today) };
+    throw new Error("不支持的业绩统计范围");
+  }
+
+  function calculatePerformanceRankings(days, people, shiftKeys, bounds = {}) {
+    const peopleById = new Map((people || []).map((person) => [person.id, person]));
+    const hostRows = new Map();
+    const coHostRows = new Map();
+    const addResult = (target, personId, snapshot, amount) => {
+      if (!personId) return;
+      if (!target.has(personId)) target.set(personId, { id: personId, name: peopleById.get(personId)?.name || snapshot || "未知人员", cents: 0, sessionCount: 0 });
+      const row = target.get(personId);
+      row.cents += Math.round(amount * 100);
+      row.sessionCount += 1;
+    };
+    Object.entries(days || {}).forEach(([dateKey, day]) => {
+      if ((bounds.start && dateKey < bounds.start) || (bounds.end && dateKey > bounds.end)) return;
+      (shiftKeys || []).forEach((shiftKey) => {
+        const slot = day?.[shiftKey];
+        const amount = slot?.performanceAmount;
+        if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return;
+        addResult(hostRows, slot.hostId, slot.hostNameSnapshot, amount);
+        addResult(coHostRows, slot.coHostId, slot.coHostNameSnapshot, amount);
+      });
+    });
+    const rank = (rows) => {
+      const sorted = [...rows.values()].sort((a, b) => b.cents - a.cents || a.name.localeCompare(b.name, "zh-CN"));
+      let previousCents = null;
+      let previousRank = 0;
+      return sorted.map((row, index) => {
+        const currentRank = previousCents === row.cents ? previousRank : index + 1;
+        previousCents = row.cents;
+        previousRank = currentRank;
+        return { id: row.id, name: row.name, rank: currentRank, total: row.cents / 100, sessionCount: row.sessionCount, average: row.cents / 100 / row.sessionCount };
+      });
+    };
+    return { hosts: rank(hostRows), coHosts: rank(coHostRows) };
+  }
+
   function intervalForSlot(slot) {
     const start = timeToMinutes(slot.startTime);
     let end = timeToMinutes(slot.endTime);
@@ -458,6 +520,9 @@
     getWeekDates,
     timeToMinutes,
     durationHours,
+    parsePerformanceAmount,
+    performanceRangeBounds,
+    calculatePerformanceRankings,
     intervalsOverlap,
     isOvertimeShift,
     calculateStatistics,

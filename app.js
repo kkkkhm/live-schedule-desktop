@@ -31,6 +31,7 @@
   let pendingRangeStart = "";
   let hoverRangeEnd = "";
   let openLeaveDateKey = "";
+  let performanceRangeMode = ["current", "30d", "3m", "all"].includes(state.settings?.performanceRangeMode) ? state.settings.performanceRangeMode : "current";
   let toastTimer;
   document.addEventListener("DOMContentLoaded", initialize);
 
@@ -39,6 +40,7 @@
       rangePickerBtn: byId("rangePickerBtn"), rangePickerText: byId("rangePickerText"), rangePickerPanel: byId("rangePickerPanel"), calendarMonths: byId("calendarMonths"), calendarPrompt: byId("calendarPrompt"), calendarSelectionSummary: byId("calendarSelectionSummary"), previousMonthBtn: byId("previousMonthBtn"), nextMonthBtn: byId("nextMonthBtn"), closeRangePickerBtn: byId("closeRangePickerBtn"), weekRangeLabel: byId("weekRangeLabel"), statsRangeLabel: byId("statsRangeLabel"), saveStatus: byId("saveStatus"),
       scheduleHead: byId("scheduleHead"), scheduleBody: byId("scheduleBody"), scheduleRoomSelect: byId("scheduleRoomSelect"), saveScheduleBtn: byId("saveScheduleBtn"), clearScheduleBtn: byId("clearScheduleBtn"), scheduleHint: byId("scheduleHint"), scheduleEmptyState: byId("scheduleEmptyState"), scheduleScroll: document.querySelector(".schedule-scroll"), autoScheduler: byId("autoScheduler"), groupTemplateGrid: byId("groupTemplateGrid"), generateScheduleBtn: byId("generateScheduleBtn"), refreshGuidanceBtn: byId("refreshGuidanceBtn"), autoScheduleStatus: byId("autoScheduleStatus"),
       previousWeekBtn: byId("previousWeekBtn"), nextWeekBtn: byId("nextWeekBtn"), todayWeekBtn: byId("todayWeekBtn"), historyStartInput: byId("historyStartInput"), historyEndInput: byId("historyEndInput"), historyRoomFilter: byId("historyRoomFilter"), openHistoryRangeBtn: byId("openHistoryRangeBtn"), refreshOverviewBtn: byId("refreshOverviewBtn"), overviewTableBody: byId("overviewTableBody"),
+      performanceRangeLabel: byId("performanceRangeLabel"), performanceTableBody: byId("performanceTableBody"), hostRankingBody: byId("hostRankingBody"), coHostRankingBody: byId("coHostRankingBody"),
       roomForm: byId("roomForm"), roomIdInput: byId("roomIdInput"), roomNameInput: byId("roomNameInput"), roomAccountInput: byId("roomAccountInput"), saveRoomBtn: byId("saveRoomBtn"), cancelRoomEditBtn: byId("cancelRoomEditBtn"), roomFormError: byId("roomFormError"), roomsTableBody: byId("roomsTableBody"),
       personForm: byId("personForm"), personIdInput: byId("personIdInput"), personNameInput: byId("personNameInput"), canHostInput: byId("canHostInput"), canCoHostInput: byId("canCoHostInput"), employmentTypeInput: byId("employmentTypeInput"), savePersonBtn: byId("savePersonBtn"), cancelPersonEditBtn: byId("cancelPersonEditBtn"), personFormError: byId("personFormError"), peopleTableBody: byId("peopleTableBody"),
       statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), exportJsonBtn: byId("exportJsonBtn"), importJsonBtn: byId("importJsonBtn"), importFileInput: byId("importFileInput"), exportScheduleXlsxBtn: byId("exportScheduleXlsxBtn"), exportScheduleCsvBtn: byId("exportScheduleCsvBtn"), exportStatsCsvBtn: byId("exportStatsCsvBtn"), toast: byId("toast")
@@ -70,13 +72,14 @@
     elements.previousWeekBtn.addEventListener("click", () => shiftRange(-1)); elements.nextWeekBtn.addEventListener("click", () => shiftRange(1)); elements.todayWeekBtn.addEventListener("click", resetRangeToday);
     elements.rangePickerBtn.addEventListener("click", toggleRangePicker); elements.previousMonthBtn.addEventListener("click", () => changeCalendarMonth(-1)); elements.nextMonthBtn.addEventListener("click", () => changeCalendarMonth(1)); elements.closeRangePickerBtn.addEventListener("click", closeRangePicker); elements.scheduleRoomSelect.addEventListener("change", () => selectRoom(elements.scheduleRoomSelect.value)); elements.saveScheduleBtn.addEventListener("click", saveScheduleNow); elements.clearScheduleBtn.addEventListener("click", clearCurrentSchedule); elements.generateScheduleBtn.addEventListener("click", generateRangeSchedule); elements.refreshGuidanceBtn.addEventListener("click", refreshScheduleGuidance);
     elements.openHistoryRangeBtn.addEventListener("click", openHistoryRange); elements.refreshOverviewBtn.addEventListener("click", () => { renderOverview(); showToast("近三月总览已更新"); }); elements.historyRoomFilter.addEventListener("change", renderOverview);
+    document.querySelectorAll("[data-performance-range]").forEach((button) => button.addEventListener("click", () => { performanceRangeMode = button.dataset.performanceRange; state.settings.performanceRangeMode = performanceRangeMode; saveState(); renderPerformance(); }));
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
     elements.roomForm.addEventListener("submit", saveRoom); elements.cancelRoomEditBtn.addEventListener("click", resetRoomForm); elements.personForm.addEventListener("submit", savePerson); elements.cancelPersonEditBtn.addEventListener("click", resetPersonForm);
     elements.exportJsonBtn.addEventListener("click", exportJson); elements.importJsonBtn.addEventListener("click", () => elements.importFileInput.click()); elements.importFileInput.addEventListener("change", importJson); elements.exportScheduleXlsxBtn.addEventListener("click", exportScheduleXlsx); elements.exportScheduleCsvBtn.addEventListener("click", exportScheduleCsv); elements.exportStatsCsvBtn.addEventListener("click", exportStatsCsv);
     document.addEventListener("click", (event) => { if (!(event.target instanceof Element)) return; if (!elements.rangePickerPanel.hidden && !event.target.closest(".range-picker-wrap")) closeRangePicker(); if (!event.target.closest(".leave-picker")) { openLeaveDateKey = ""; document.querySelectorAll(".leave-picker[open]").forEach((picker) => { picker.open = false; }); } });
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !elements.rangePickerPanel.hidden) closeRangePicker(); });
   }
-  function activateTab(name) { document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name)); document.querySelectorAll("[data-panel]").forEach((panel) => { const active = panel.dataset.panel === name; panel.hidden = !active; panel.classList.toggle("active", active); }); if (name === "history") renderOverview(); if (name === "stats") renderStats(); }
+  function activateTab(name) { document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name)); document.querySelectorAll("[data-panel]").forEach((panel) => { const active = panel.dataset.panel === name; panel.hidden = !active; panel.classList.toggle("active", active); }); if (name === "history") renderOverview(); if (name === "performance") renderPerformance(); if (name === "stats") renderStats(); }
   function currentDates() { try { return Logic.dateRange(selectedStart, selectedEnd, 14); } catch (error) { return []; } }
   function renderRangePickerButton() { if (elements.rangePickerText) elements.rangePickerText.textContent = `${formatShortDate(selectedStart)} — ${formatShortDate(selectedEnd)}`; }
   function setRange(start, end, notify = true) {
@@ -142,7 +145,7 @@
   function getSlot(dateKey, shift, create = true) { const day = getDay(dateKey, create); if (!day) return blankSlot(shift); if (!day[shift.key] && create) day[shift.key] = blankSlot(shift); return day[shift.key] || blankSlot(shift); }
   function touchDay(dateKey) { const day = getDay(dateKey, false); if (day) day.updatedAt = nowIso(); }
   function selectedDaysObject() { const schedule = getRoomSchedule(false); return Object.fromEntries(currentDates().map((date) => Logic.toIsoDate(date)).map((key) => [key, schedule?.days?.[key]]).filter(([, day]) => day)); }
-  function renderAll() { renderRangeLabel(); renderRoomSelectors(); renderGroupTemplates(); renderSchedule(); renderRooms(); renderPeople(); renderStats(); }
+  function renderAll() { renderRangeLabel(); renderRoomSelectors(); renderGroupTemplates(); renderSchedule(); renderPerformance(); renderRooms(); renderPeople(); renderStats(); }
   function renderRangeLabel() { const dates = currentDates(); const label = dates.length ? `${formatFullDate(dates[0])} — ${formatFullDate(dates.at(-1))}` : "无效日期区间"; elements.weekRangeLabel.textContent = label; const info = selectedRoomKey ? roomInfo(selectedRoomKey, getRoomSchedule(false)) : null; elements.statsRangeLabel.textContent = `统计区间：${label}${info ? ` · ${info.name}` : " · 未选择直播间"}`; }
   function renderRoomSelectors() {
     const currentFilter = elements.historyRoomFilter.value; elements.scheduleRoomSelect.replaceChildren(new Option("请选择直播间", ""));
@@ -204,11 +207,23 @@
     return "";
   }
   function generateRangeSchedule() {
-    if (!selectedRoomKey) return showToast("请先选择主直播间。", true); const templates = getGroupTemplates(); const partTime = getPartTimeGroup(); const error = validateGroupTemplates(templates, partTime); if (error) return showToast(error, true);
+    if (!selectedRoomKey) return showToast("请先选择主直播间。", true);
+    const templates = getGroupTemplates(); const partTime = getPartTimeGroup(); const error = validateGroupTemplates(templates, partTime); if (error) return showToast(error, true);
     const dates = currentDates(); const hasExisting = dates.some((date) => { const day = getDay(Logic.toIsoDate(date), false); return day && [...shifts, ...legacyOvertimeShifts].some((shift) => { const slot = day[shift.key]; return slot && (slot.hostId || slot.coHostId || slot.note || slot.overtimeStartTime); }); });
-    if (hasExisting && !window.confirm("所选区间已有排班。是否覆盖班次内容？休假人员和休假备注会保留。")) return;
+    if (hasExisting && !window.confirm("所选区间已有排班。是否覆盖班次内容？休假信息会保留；仍存在的同日期、同班次业绩也会保留。")) return;
     const summary = { four: 0, three: 0, two: 0, critical: 0 };
-    dates.forEach((date) => { const dateKey = Logic.toIsoDate(date); const day = getDay(dateKey); [...shifts, ...legacyOvertimeShifts].forEach((shift) => { delete day[shift.key]; }); const plan = Logic.planDayFromTemplates(templates, day.leavePeople.map((item) => item.personId), partTime); summary[plan.scenario] += 1; plan.assignments.forEach((group) => { const shift = shifts.find((item) => item.key === group.shiftKey); const slot = blankSlot(shift); const host = state.people.find((p) => p.id === group.hostId); const coHost = state.people.find((p) => p.id === group.coHostId); const secondaryRoomId = templates.find((item) => item.shiftKey === "secondary")?.roomId || ""; const roomId = group.shiftKey === "secondary" ? secondaryRoomId : selectedRoomKey; const room = state.rooms.find((item) => item.id === roomId); const reassigned = group.movedFromShiftKey && group.movedFromShiftKey !== group.shiftKey; Object.assign(slot, { hostId: group.hostId, coHostId: group.coHostId, hostNameSnapshot: host?.name || "", coHostNameSnapshot: coHost?.name || "", roomId, roomNameSnapshot: room?.name || "", roomAccountSnapshot: room?.account || "", groupType: group.groupType || "formal", templateGroupId: group.id, startTime: group.groupType === "partTime" || reassigned ? shift.startTime : group.startTime, endTime: group.groupType === "partTime" || reassigned ? shift.endTime : group.endTime, overtimeStartTime: group.overtimeStartTime || "", overtimeEndTime: group.overtimeEndTime || "", note: group.overtimeStartTime ? "系统自动加班 1.5 小时" : reassigned ? "2组场景：系统重新安排主号班次" : group.groupType === "partTime" ? "系统自动补入固定兼职班组" : "" }); day[group.shiftKey] = slot; }); day.autoSchedule = { scenario: plan.scenario, formalGroupCount: plan.formalGroupCount, needsPartTime: plan.needsPartTime, missingShiftKeys: plan.missingShiftKeys, partTimeShiftKey: plan.assignments.find((item) => item.groupType === "partTime")?.shiftKey || "", requiredOvertimeGroupIds: plan.requiredOvertimeGroupIds, partTimeConflict: plan.partTimeConflict, generatedAt: nowIso() }; day.updatedAt = nowIso(); });
+    dates.forEach((date) => {
+      const dateKey = Logic.toIsoDate(date); const day = getDay(dateKey); const performanceByShift = new Map();
+      shifts.forEach((shift) => { const oldSlot = day[shift.key]; if (typeof oldSlot?.performanceAmount === "number") performanceByShift.set(shift.key, { performanceAmount: oldSlot.performanceAmount, performanceUpdatedAt: oldSlot.performanceUpdatedAt || "" }); });
+      [...shifts, ...legacyOvertimeShifts].forEach((shift) => { delete day[shift.key]; });
+      const plan = Logic.planDayFromTemplates(templates, day.leavePeople.map((item) => item.personId), partTime); summary[plan.scenario] += 1;
+      plan.assignments.forEach((group) => {
+        const shift = shifts.find((item) => item.key === group.shiftKey); const slot = blankSlot(shift); const host = state.people.find((p) => p.id === group.hostId); const coHost = state.people.find((p) => p.id === group.coHostId); const secondaryRoomId = templates.find((item) => item.shiftKey === "secondary")?.roomId || ""; const roomId = group.shiftKey === "secondary" ? secondaryRoomId : selectedRoomKey; const room = state.rooms.find((item) => item.id === roomId); const reassigned = group.movedFromShiftKey && group.movedFromShiftKey !== group.shiftKey;
+        Object.assign(slot, { hostId: group.hostId, coHostId: group.coHostId, hostNameSnapshot: host?.name || "", coHostNameSnapshot: coHost?.name || "", roomId, roomNameSnapshot: room?.name || "", roomAccountSnapshot: room?.account || "", groupType: group.groupType || "formal", templateGroupId: group.id, startTime: group.groupType === "partTime" || reassigned ? shift.startTime : group.startTime, endTime: group.groupType === "partTime" || reassigned ? shift.endTime : group.endTime, overtimeStartTime: group.overtimeStartTime || "", overtimeEndTime: group.overtimeEndTime || "", note: group.overtimeStartTime ? "系统自动加班 1.5 小时" : reassigned ? "2组场景：系统重新安排主号班次" : group.groupType === "partTime" ? "系统自动补入固定兼职班组" : "" }, performanceByShift.get(group.shiftKey) || {});
+        day[group.shiftKey] = slot;
+      });
+      day.autoSchedule = { scenario: plan.scenario, formalGroupCount: plan.formalGroupCount, needsPartTime: plan.needsPartTime, missingShiftKeys: plan.missingShiftKeys, partTimeShiftKey: plan.assignments.find((item) => item.groupType === "partTime")?.shiftKey || "", requiredOvertimeGroupIds: plan.requiredOvertimeGroupIds, partTimeConflict: plan.partTimeConflict, generatedAt: nowIso() }; day.updatedAt = nowIso();
+    });
     saveState(); renderAll(); renderOverview(); elements.autoScheduleStatus.textContent = `已生成：4组 ${summary.four}天、3组 ${summary.three}天、2组 ${summary.two}天、需人工处理 ${summary.critical}天。`; showToast("区间排班已生成，历史记录已同步");
   }
   function renderSchedule() {
@@ -239,12 +254,12 @@
   }
   function clearCurrentSchedule() {
     if (!selectedRoomKey) return showToast("请先选择直播间。", true);
-    if (!window.confirm(`确定清空 ${selectedStart} 至 ${selectedEnd} 的当前排班吗？\n\n将清空主播、副播、直播时间、加班和班次备注；休假人员与休假备注会保留。`)) return;
+    if (!window.confirm(`确定清空 ${selectedStart} 至 ${selectedEnd} 的当前排班吗？\n\n将清空主播、副播、直播时间、加班、班次备注和已录入业绩；休假人员与休假备注会保留。`)) return;
     Logic.clearScheduleDays(getRoomSchedule(false), currentDates().map(Logic.toIsoDate), [...shifts, ...legacyOvertimeShifts].map((shift) => shift.key), nowIso());
     openLeaveDateKey = "";
     saveState(); renderSchedule(); renderStats(); renderOverview();
     elements.autoScheduleStatus.textContent = "当前日期区间的排班已清空；休假人员和休假备注已保留。";
-    showToast("当前排班已清空，休假信息已保留");
+    showToast("当前排班和业绩已清空，休假信息已保留");
   }
   function buildSlotEditor(dateKey, shift, slot) {
     const wrapper = document.createElement("div"); wrapper.className = "slot-editor";
@@ -267,6 +282,52 @@
     if (!elements.overviewTableBody.children.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 10; cell.textContent = "近三个月暂无排班记录"; row.appendChild(cell); elements.overviewTableBody.appendChild(row); }
   }
   function openHistoryRange() { const roomKey = elements.historyRoomFilter.value; if (!roomKey) return showToast("请选择直播间。", true); try { Logic.dateRange(elements.historyStartInput.value, elements.historyEndInput.value, 14); selectedRoomKey = roomKey; state.settings.lastRoomKey = roomKey; setRange(elements.historyStartInput.value, elements.historyEndInput.value, false); activateTab("schedule"); } catch (error) { showToast(error.message, true); } }
+
+  function performanceBounds() { return Logic.performanceRangeBounds(performanceRangeMode, selectedStart, selectedEnd, new Date()); }
+  function performanceEntries(bounds) {
+    const schedule = getRoomSchedule(false); const entries = [];
+    Object.entries(schedule?.days || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([dateKey, day]) => {
+      if ((bounds.start && dateKey < bounds.start) || (bounds.end && dateKey > bounds.end)) return;
+      shifts.forEach((shift) => {
+        const slot = day?.[shift.key]; if (!slot || (!slot.hostId && !slot.coHostId)) return;
+        const room = state.rooms.find((item) => item.id === slot.roomId); const fallback = roomInfo(selectedRoomKey, schedule);
+        entries.push({ dateKey, day, shift, slot, roomName: room?.name || slot.roomNameSnapshot || fallback.name, hostName: state.people.find((person) => person.id === slot.hostId)?.name || slot.hostNameSnapshot || "未安排", coHostName: state.people.find((person) => person.id === slot.coHostId)?.name || slot.coHostNameSnapshot || "未安排" });
+      });
+    });
+    return entries;
+  }
+  function renderPerformance() {
+    if (!elements.performanceTableBody) return;
+    document.querySelectorAll("[data-performance-range]").forEach((button) => button.classList.toggle("active", button.dataset.performanceRange === performanceRangeMode));
+    let bounds;
+    try { bounds = performanceBounds(); } catch (error) { elements.performanceRangeLabel.textContent = error.message; return; }
+    const rangeNames = { current: "当前区间", "30d": "近30天", "3m": "近3个月", all: "全部日期" }; const rangeText = bounds.start ? `${formatShortDate(bounds.start)} — ${formatShortDate(bounds.end)}` : "全部已保存日期"; const info = selectedRoomKey ? roomInfo(selectedRoomKey, getRoomSchedule(false)) : null;
+    elements.performanceRangeLabel.textContent = `${rangeNames[performanceRangeMode]}：${rangeText}${info ? ` · ${info.name}` : " · 未选择直播间"}`;
+    elements.performanceTableBody.replaceChildren(); const entries = selectedRoomKey ? performanceEntries(bounds) : [];
+    if (!entries.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 8; cell.textContent = selectedRoomKey ? "此范围暂无已排班班次" : "请先在直播间管理中新增直播间"; row.appendChild(cell); elements.performanceTableBody.appendChild(row); }
+    else entries.forEach((entry) => {
+      const date = Logic.parseLocalDate(entry.dateKey); const row = document.createElement("tr"); row.append(textCell(entry.dateKey), textCell(date ? weekdays[date.getDay()] : ""), textCell(entry.shift.label), textCell(entry.roomName));
+      const hostCell = textCell(entry.hostName); if (!entry.slot.hostId) hostCell.appendChild(missingPersonHint("缺少主播")); const coHostCell = textCell(entry.coHostName); if (!entry.slot.coHostId) coHostCell.appendChild(missingPersonHint("缺少副播")); row.append(hostCell, coHostCell);
+      const amountCell = document.createElement("td"); const amountWrap = document.createElement("div"); amountWrap.className = "performance-amount"; const input = document.createElement("input"); input.type = "number"; input.min = "0"; input.step = "0.01"; input.inputMode = "decimal"; input.placeholder = "输入业绩"; input.ariaLabel = `${entry.dateKey}${entry.shift.label}业绩金额`; input.value = typeof entry.slot.performanceAmount === "number" ? String(entry.slot.performanceAmount) : ""; const error = document.createElement("small"); error.className = "performance-error"; input.addEventListener("input", () => validatePerformanceInput(input, error)); amountWrap.append(input, error); amountCell.appendChild(amountWrap);
+      const statusCell = document.createElement("td"); const status = document.createElement("span"); status.className = `performance-status${typeof entry.slot.performanceAmount === "number" ? " saved" : ""}`; status.textContent = typeof entry.slot.performanceAmount === "number" ? "已保存" : "未录入"; statusCell.appendChild(status); input.addEventListener("change", () => savePerformanceAmount(entry, input, error, status)); row.append(amountCell, statusCell); elements.performanceTableBody.appendChild(row);
+    });
+    renderPerformanceRankings(bounds);
+  }
+  function missingPersonHint(text) { const hint = document.createElement("div"); hint.className = "missing-person"; hint.textContent = text; return hint; }
+  function validatePerformanceInput(input, error) { const parsed = Logic.parsePerformanceAmount(input.value); input.classList.toggle("is-invalid", !parsed.valid); error.textContent = parsed.valid ? "" : "请输入非负金额，最多两位小数"; return parsed; }
+  function savePerformanceAmount(entry, input, error, status) {
+    const parsed = validatePerformanceInput(input, error); if (!parsed.valid) { status.className = "performance-status warning"; status.textContent = "未保存"; return; }
+    entry.slot.performanceAmount = parsed.value; entry.slot.performanceUpdatedAt = parsed.value === null ? "" : nowIso(); touchDay(entry.dateKey);
+    if (!saveState()) { status.className = "performance-status warning"; status.textContent = "保存失败"; return; }
+    status.className = `performance-status${parsed.value === null ? "" : " saved"}`; status.textContent = parsed.value === null ? "未录入" : "已保存"; renderPerformanceRankings(performanceBounds()); showToast(parsed.value === null ? "业绩已清除" : "业绩已保存");
+  }
+  function renderPerformanceRankings(bounds) {
+    const schedule = getRoomSchedule(false); const rankings = Logic.calculatePerformanceRankings(schedule?.days || {}, state.people, shifts.map((shift) => shift.key), bounds); renderRankingBody(elements.hostRankingBody, rankings.hosts, "暂无主播业绩"); renderRankingBody(elements.coHostRankingBody, rankings.coHosts, "暂无副播业绩");
+  }
+  function renderRankingBody(body, rows, emptyText) {
+    body.replaceChildren(); if (!rows.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 5; cell.textContent = emptyText; row.appendChild(cell); body.appendChild(row); return; }
+    rows.forEach((item) => { const row = document.createElement("tr"); const rankCell = document.createElement("td"); const rank = document.createElement("span"); rank.className = `rank-number${item.rank <= 3 ? " top" : ""}`; rank.textContent = String(item.rank); rankCell.appendChild(rank); row.append(rankCell, textCell(item.name), textCell(formatCurrency(item.total)), textCell(String(item.sessionCount)), textCell(formatCurrency(item.average))); body.appendChild(row); });
+  }
 
   function renderRooms() { elements.roomsTableBody.replaceChildren(); if (!state.rooms.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 4; cell.textContent = "暂无直播间，请先新增。"; row.appendChild(cell); elements.roomsTableBody.appendChild(row); return; } state.rooms.slice().sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, "zh-CN")).forEach((room) => { const row = document.createElement("tr"); row.append(textCell(room.name), textCell(room.account)); const status = document.createElement("td"); status.append(statusBadge(room.active)); row.appendChild(status); const actions = document.createElement("td"); actions.className = "row-actions"; actions.append(actionButton("编辑", () => editRoom(room.id)), actionButton(room.active ? "停用" : "启用", () => toggleRoom(room.id), room.active ? "danger" : ""), actionButton("删除", () => deleteRoom(room.id), "danger")); row.appendChild(actions); elements.roomsTableBody.appendChild(row); }); }
   function saveRoom(event) { event.preventDefault(); const id = elements.roomIdInput.value; const name = elements.roomNameInput.value.trim(); const account = elements.roomAccountInput.value.trim(); elements.roomFormError.textContent = ""; if (!name || !account) return showRoomError("请填写直播间名称和账号。"); if (state.rooms.some((room) => room.account.toLocaleLowerCase() === account.toLocaleLowerCase() && room.id !== id)) return showRoomError("该直播间账号已存在。"); if (id) { const room = state.rooms.find((item) => item.id === id); if (!room) return showRoomError("未找到要编辑的直播间。"); Object.assign(room, { name, account }); const schedule = state.schedules[id]; if (schedule) { schedule.roomNameSnapshot = name; schedule.roomAccountSnapshot = account; } showToast("直播间信息已更新"); } else { const room = { id: createId("room"), name, account, active: true }; state.rooms.push(room); selectedRoomKey = room.id; state.settings.lastRoomKey = room.id; showToast("直播间已新增并设为当前直播间"); } saveState(); resetRoomForm(); renderAll(); }
@@ -381,6 +442,7 @@
   function textCell(value) { const cell = document.createElement("td"); cell.textContent = value; return cell; }
   function actionButton(label, handler, extraClass = "") { const button = document.createElement("button"); button.type = "button"; button.className = `button small ${extraClass}`.trim(); button.textContent = label; button.addEventListener("click", handler); return button; }
   function formatHours(value) { return Number.isInteger(value) ? String(value) : Number(value.toFixed(2)).toString(); }
+  function formatCurrency(value) { return new Intl.NumberFormat("zh-CN", { style: "currency", currency: "CNY", minimumFractionDigits: 2 }).format(value || 0); }
   function formatShortDate(value) { const date = value instanceof Date ? value : Logic.parseLocalDate(value); return date ? `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}` : "未选择"; }
   function formatFullDate(date) { return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`; }
   function todayStamp() { return Logic.toIsoDate(new Date()); }

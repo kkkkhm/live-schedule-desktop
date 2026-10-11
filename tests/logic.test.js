@@ -26,6 +26,43 @@ test("calculates ordinary and overnight hours", () => {
   assert.equal(Logic.durationHours("08:00", "08:00"), 0);
 });
 
+test("validates performance amounts with at most two decimals", () => {
+  assert.deepEqual(Logic.parsePerformanceAmount(""), { valid: true, value: null });
+  assert.deepEqual(Logic.parsePerformanceAmount("10000.50"), { valid: true, value: 10000.5 });
+  assert.equal(Logic.parsePerformanceAmount("-1").valid, false);
+  assert.equal(Logic.parsePerformanceAmount("1.234").valid, false);
+  assert.equal(Logic.parsePerformanceAmount("abc").valid, false);
+});
+
+test("builds current, thirty-day, three-month and all performance ranges", () => {
+  assert.deepEqual(Logic.performanceRangeBounds("current", "2026-10-01", "2026-10-07", "2026-10-11"), { start: "2026-10-01", end: "2026-10-07" });
+  assert.deepEqual(Logic.performanceRangeBounds("30d", "", "", "2026-10-11"), { start: "2026-09-12", end: "2026-10-11" });
+  assert.deepEqual(Logic.performanceRangeBounds("3m", "", "", "2026-10-11"), { start: "2026-07-11", end: "2026-10-11" });
+  assert.deepEqual(Logic.performanceRangeBounds("all", "", "", "2026-10-11"), { start: "", end: "" });
+});
+
+test("credits full performance to separate host and co-host rankings", () => {
+  const days = {
+    "2026-10-01": { morning: { hostId: "h1", hostNameSnapshot: "主播甲", coHostId: "c1", coHostNameSnapshot: "副播甲", performanceAmount: 10000 } },
+    "2026-10-02": { morning: { hostId: "h1", coHostId: "c2", coHostNameSnapshot: "副播乙", performanceAmount: 0 }, afternoon: { hostId: "h2", hostNameSnapshot: "主播乙", coHostId: "c1", performanceAmount: 10000 } },
+    "2026-09-01": { morning: { hostId: "outside", coHostId: "outside-c", performanceAmount: 99999 } }
+  };
+  const people = [{ id: "h1", name: "主播甲" }, { id: "c1", name: "副播甲" }];
+  const result = Logic.calculatePerformanceRankings(days, people, ["morning", "afternoon"], { start: "2026-10-01", end: "2026-10-31" });
+  assert.deepEqual(result.hosts.map((row) => [row.name, row.rank, row.total, row.sessionCount, row.average]), [["主播甲", 1, 10000, 2, 5000], ["主播乙", 1, 10000, 1, 10000]]);
+  assert.deepEqual(result.coHosts.map((row) => [row.name, row.rank, row.total, row.sessionCount]), [["副播甲", 1, 20000, 2], ["副播乙", 2, 0, 1]]);
+});
+
+test("uses competition ranking for equal performance totals", () => {
+  const days = { "2026-10-01": {
+    morning: { hostId: "a", performanceAmount: 300 },
+    afternoon: { hostId: "b", performanceAmount: 200 },
+    evening: { hostId: "c", performanceAmount: 200 },
+    secondary: { hostId: "d", performanceAmount: 100 }
+  } };
+  assert.deepEqual(Logic.calculatePerformanceRankings(days, [], ["morning", "afternoon", "evening", "secondary"]).hosts.map((row) => row.rank), [1, 2, 2, 4]);
+});
+
 test("calculates live hours without distinguishing roles", () => {
   const people = [{ id: "a", name: "甲" }, { id: "b", name: "乙" }];
   const week = { monday: { morning: { hostId: "a", coHostId: "b", startTime: "08:00", endTime: "13:00" } } };

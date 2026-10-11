@@ -57,6 +57,7 @@
     <nav class="tabs" aria-label="功能导航">
       <button class="tab active" data-tab="schedule">周排班</button>
       <button class="tab" data-tab="history">历史记录</button>
+      <button class="tab" data-tab="performance">业绩排名</button>
       <button class="tab" data-tab="rooms">直播间管理</button>
       <button class="tab" data-tab="people">人员管理</button>
       <button class="tab" data-tab="stats">时长统计</button>
@@ -118,6 +119,42 @@
           <thead><tr><th>日期</th><th>直播间</th><th>班次</th><th>主播</th><th>副播</th><th>时间</th><th>正常时长</th><th>加班时长</th><th>休假人员</th><th>休假备注</th></tr></thead>
           <tbody id="overviewTableBody"></tbody>
         </table>
+      </div>
+    </section>
+
+    <section id="performancePanel" class="panel" data-panel="performance" hidden>
+      <div class="panel-heading">
+        <div>
+          <h2>业绩排名</h2>
+          <p id="performanceRangeLabel">按排班班次录入业绩，主播与副播分别排名。</p>
+        </div>
+      </div>
+      <div class="performance-toolbar" aria-label="业绩统计范围">
+        <span>统计范围</span>
+        <button class="button performance-range active" type="button" data-performance-range="current">当前区间</button>
+        <button class="button performance-range" type="button" data-performance-range="30d">近30天</button>
+        <button class="button performance-range" type="button" data-performance-range="3m">近3个月</button>
+        <button class="button performance-range" type="button" data-performance-range="all">全部</button>
+      </div>
+      <div class="people-table-wrap performance-table-wrap">
+        <table class="data-table performance-table">
+          <thead><tr><th>日期</th><th>星期</th><th>班次</th><th>直播间</th><th>主播</th><th>副播</th><th>业绩金额（元）</th><th>状态</th></tr></thead>
+          <tbody id="performanceTableBody"></tbody>
+        </table>
+      </div>
+      <div class="ranking-grid">
+        <section class="ranking-card">
+          <h3>主播业绩排名</h3>
+          <div class="people-table-wrap">
+            <table class="data-table"><thead><tr><th>名次</th><th>主播</th><th>累计业绩</th><th>班次数</th><th>平均每班</th></tr></thead><tbody id="hostRankingBody"></tbody></table>
+          </div>
+        </section>
+        <section class="ranking-card">
+          <h3>副播业绩排名</h3>
+          <div class="people-table-wrap">
+            <table class="data-table"><thead><tr><th>名次</th><th>副播</th><th>累计业绩</th><th>班次数</th><th>平均每班</th></tr></thead><tbody id="coHostRankingBody"></tbody></table>
+          </div>
+        </section>
       </div>
     </section>
 
