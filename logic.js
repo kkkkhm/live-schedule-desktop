@@ -495,7 +495,7 @@
     Object.entries(state?.schedules || {}).forEach(([roomKey, roomSchedule]) => {
       Object.entries(roomSchedule?.days || {}).forEach(([dateKey, day]) => {
         const date = parseLocalDate(dateKey);
-        if (!date || date < threshold || date > today || !hasDayContent(day)) return;
+        if (!date || date < threshold || !hasDayContent(day)) return;
         records.push({ roomKey, dateKey, day, roomSchedule });
       });
     });

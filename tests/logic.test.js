@@ -265,11 +265,18 @@ test("keeps mixed-room V2 weeks unassigned", () => {
   assert.ok(Logic.migrateState(v2).schedules.unassigned.days["2026-10-05"]);
 });
 
-test("returns only non-empty history from the last three months", () => {
+test("returns non-empty history from the last three months and every saved future date", () => {
   const filled = { morning: { hostId: "a", startTime: "08:00", endTime: "13:00" }, leavePeople: [], leaveNote: "" };
-  const state = { schedules: { r1: { days: { "2026-10-05": filled, "2026-06-01": filled, "2026-10-12": {} } } } };
+  const state = { schedules: { r1: { days: {
+    "2027-06-01": filled,
+    "2026-10-12": {},
+    "2026-10-09": filled,
+    "2026-10-05": filled,
+    "2026-07-09": filled,
+    "2026-07-08": filled
+  } } } };
   const records = Logic.historyRecords(state, "2026-10-09");
-  assert.deepEqual(records.map((item) => item.dateKey), ["2026-10-05"]);
+  assert.deepEqual(records.map((item) => item.dateKey), ["2027-06-01", "2026-10-09", "2026-10-05", "2026-07-09"]);
 });
 
 test("clears only selected schedule days while preserving leave information", () => {
