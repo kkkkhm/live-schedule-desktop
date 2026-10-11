@@ -4,14 +4,14 @@
 
 ### Windows
 
-双击 `LiveSchedule-Windows-1.0.4-x64.exe` 即可运行。程序是绿色便携版，不要求安装 Node.js，也不需要本地服务器。
+双击 `LiveSchedule-Windows-1.0.5-x64.exe` 即可运行。程序是绿色便携版，不要求安装 Node.js，也不需要本地服务器。
 
 ### macOS
 
 下载与处理器匹配的文件：
 
-- Apple Silicon（M1/M2/M3/M4 等）：`LiveSchedule-macOS-1.0.4-arm64.zip`
-- Intel Mac：`LiveSchedule-macOS-1.0.4-x64.zip`
+- Apple Silicon（M1/M2/M3/M4 等）：`LiveSchedule-macOS-1.0.5-arm64.zip`
+- Intel Mac：`LiveSchedule-macOS-1.0.5-x64.zip`
 
 解压后打开 `.app`。因为当前版本没有 Apple 开发者签名，首次打开如果被系统阻止，请进入“系统设置 → 隐私与安全性”，在安全提示处点击“仍要打开”。
 

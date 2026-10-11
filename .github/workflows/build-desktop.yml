@@ -15,9 +15,11 @@ jobs:
           - os: windows-latest
             command: npm run pack:win
             artifact: windows-portable
+            path: desktop-dist/LiveSchedule-Windows-*.exe
           - os: macos-latest
             command: npm run pack:mac
             artifact: macos-unsigned
+            path: desktop-dist/LiveSchedule-macOS-*.zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +41,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: desktop-dist/*
+          path: ${{ matrix.path }}
           if-no-files-found: error
 
   release:
