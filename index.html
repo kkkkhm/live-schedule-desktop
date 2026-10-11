@@ -14,15 +14,8 @@
       <h1>直播排班</h1>
       <p class="subtitle">灵活日期区间排班、直播间与人员管理、直播时长统计</p>
     </div>
-    <div class="header-actions" aria-label="数据操作">
-      <button id="exportJsonBtn" class="button secondary">导出备份</button>
-      <button id="importJsonBtn" class="button secondary">导入备份</button>
-      <button id="exportScheduleXlsxBtn" class="button secondary">导出排班 Excel</button>
-      <button id="exportScheduleCsvBtn" class="button secondary">导出排班 CSV</button>
-      <button id="exportStatsCsvBtn" class="button secondary">导出统计 CSV</button>
-      <input id="importFileInput" type="file" accept="application/json,.json" hidden>
-    </div>
   </header>
+  <input id="importFileInput" type="file" accept="application/json,.json" hidden>
 
   <main>
     <section class="week-toolbar" aria-label="日期区间选择">
@@ -173,21 +166,6 @@
           <p>全局管理班次、正式班组、固定兼职班组和智能排班最低目标。</p>
         </div>
       </div>
-      <section class="settings-card update-card">
-        <div class="update-card-heading">
-          <div>
-            <h3>应用更新</h3>
-            <p>通过 GitHub Releases 检查 Windows 与 macOS 新版本。</p>
-          </div>
-          <span id="currentAppVersion" class="version-badge">读取中</span>
-        </div>
-        <div class="update-actions">
-          <button id="checkUpdateBtn" class="button secondary" type="button">检查更新</button>
-          <button id="downloadUpdateBtn" class="button primary" type="button" hidden>前往下载</button>
-          <span id="updateStatus" role="status">正在识别运行环境…</span>
-        </div>
-        <div id="updateNotes" class="update-notes" hidden></div>
-      </section>
       <section class="settings-card">
         <h3>每日最低目标</h3>
         <form id="scheduleTargetsForm" class="settings-form targets-form">

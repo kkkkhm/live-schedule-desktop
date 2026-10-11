@@ -8,9 +8,10 @@
 
 - Windows：运行 `npm run pack:win` 生成绿色便携版 EXE。
 - macOS：在 macOS 环境运行 `npm run pack:mac`，分别生成 Intel（x64）和 Apple Silicon（arm64）未签名 ZIP。
+- 桌面版左上角提供“文件 / 视图 / 帮助”原生菜单，可导入导出、缩放页面、检查更新和打开在线帮助。
 - 自动构建：推送 `desktop-v*` 标签或手动运行 GitHub Actions 中的 `Build desktop apps`。
 
-开发构建环境先执行 `npm install`。Windows 产物位于 `desktop-dist/LiveSchedule-Windows-1.0.6-x64.exe`。macOS 首次打开未签名应用时，如系统阻止运行，请进入“系统设置 → 隐私与安全性”，在安全提示处选择“仍要打开”。
+开发构建环境先执行 `npm install`。Windows 产物位于 `desktop-dist/LiveSchedule-Windows-1.0.7-x64.exe`。macOS 首次打开未签名应用时，如系统阻止运行，请进入“系统设置 → 隐私与安全性”，在安全提示处选择“仍要打开”。
 
 桌面版启动时会通过公开的 GitHub Releases 检查新版本，也可在“排班设置 → 应用更新”中手动检查。发现新版本后，点击“前往下载”会用系统浏览器打开与当前 Windows、Intel Mac 或 Apple Silicon Mac 匹配的文件；程序不会自动覆盖本地版本。
 

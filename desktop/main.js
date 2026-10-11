@@ -1,7 +1,8 @@
 "use strict";
 
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require("electron");
 const path = require("node:path");
+const AppMenu = require("./menu");
 const Updates = require("./updates");
 
 const APP_TITLE = "直播排班工具";
@@ -25,7 +26,7 @@ function createWindow() {
     minHeight: 720,
     show: false,
     backgroundColor: "#f4f7fb",
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -47,6 +48,17 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, "..", "index.html")).catch((error) => {
     dialog.showErrorBox(APP_TITLE, `无法启动应用：${error.message}`);
+  });
+}
+
+function installMenu() {
+  AppMenu.installApplicationMenu({
+    Menu,
+    appName: APP_TITLE,
+    platform: process.platform,
+    getWindow: () => BrowserWindow.getFocusedWindow() || mainWindow,
+    shell,
+    dialog,
   });
 }
 
@@ -73,7 +85,7 @@ if (!hasLock) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
   });
-  app.whenReady().then(() => { registerUpdateHandlers(); createWindow(); });
+  app.whenReady().then(() => { registerUpdateHandlers(); createWindow(); installMenu(); });
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 }
