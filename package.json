@@ -1,6 +1,6 @@
 {
   "name": "live-schedule-desktop",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "离线运行的直播排班桌面工具",
   "author": "直播排班工具",
@@ -10,7 +10,7 @@
     "start": "electron .",
     "test": "node tests/logic.test.js && node tests/update.test.js && node tests/desktop.test.js",
     "pack:win": "electron-builder --win portable --x64",
-    "pack:mac": "electron-builder --mac zip --x64 --arm64"
+    "pack:mac": "node desktop/package-mac.js"
   },
   "devDependencies": {
     "electron": "^44.7.0",
@@ -48,15 +48,6 @@
       "artifactName": "LiveSchedule-Windows-${version}-${arch}.${ext}"
     },
     "mac": {
-      "target": [
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
       "identity": null,
       "category": "public.app-category.productivity",
       "artifactName": "LiveSchedule-macOS-${version}-${arch}.${ext}"

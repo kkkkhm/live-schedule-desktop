@@ -6,12 +6,16 @@ const root = path.join(__dirname, "..");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const main = fs.readFileSync(path.join(root, "desktop", "main.js"), "utf8");
 const preload = fs.readFileSync(path.join(root, "desktop", "preload.js"), "utf8");
+const macPackager = fs.readFileSync(path.join(root, "desktop", "package-mac.js"), "utf8");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const workflow = fs.readFileSync(path.join(root, ".github", "workflows", "build-desktop.yml"), "utf8");
 
 assert.equal(packageJson.main, "desktop/main.js");
 assert.match(packageJson.scripts["pack:win"], /--win portable --x64/);
-assert.match(packageJson.scripts["pack:mac"], /--mac zip --x64 --arm64/);
+assert.match(packageJson.scripts["pack:mac"], /package-mac\.js/);
+assert.match(macPackager, /"ditto"/);
+assert.match(macPackager, /packageArchitecture\("x64", "mac"\)/);
+assert.match(macPackager, /packageArchitecture\("arm64", "mac-arm64"\)/);
 assert.deepEqual(packageJson.build.files.includes("vendor/**/*"), true);
 assert.match(main, /nodeIntegration:\s*false/);
 assert.match(main, /contextIsolation:\s*true/);

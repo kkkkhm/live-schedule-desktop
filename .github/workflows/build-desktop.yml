@@ -30,6 +30,12 @@ jobs:
       - run: ${{ matrix.command }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Summarize macOS packaging failure
+        if: failure() && runner.os == 'macOS'
+        run: |
+          echo "## macOS packaging diagnostics" >> "$GITHUB_STEP_SUMMARY"
+          echo "The Intel and Apple Silicon apps are packaged separately and zipped with macOS ditto." >> "$GITHUB_STEP_SUMMARY"
+          find desktop-dist -maxdepth 2 \( -type f -o -type d \) | sort | tail -100 >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
