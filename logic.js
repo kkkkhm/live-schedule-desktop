@@ -66,6 +66,14 @@
     return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   }
 
+  function eligiblePeopleForRole(people, role, selectedIds = []) {
+    const selected = new Set(selectedIds || []);
+    const capability = role === "host" ? "canHost" : "canCoHost";
+    return (people || []).filter((person) => person
+      && person[capability]
+      && (person.active !== false || selected.has(person.id)));
+  }
+
   function parsePerformanceAmount(value) {
     const text = String(value ?? "").trim();
     if (!text) return { valid: true, value: null };
@@ -648,6 +656,7 @@
     timeToMinutes,
     durationHours,
     addHoursToTime,
+    eligiblePeopleForRole,
     parsePerformanceAmount,
     performanceRangeBounds,
     calculatePerformanceRankings,

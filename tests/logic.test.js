@@ -33,6 +33,18 @@ test("adds fractional hours across midnight", () => {
   assert.equal(Logic.addHoursToTime("23:30", 1.5), "01:00");
 });
 
+test("lets the fixed part-time group select all active role-capable people regardless of employment type", () => {
+  const people = [
+    { id: "formal-host", employmentType: "formal", canHost: true, canCoHost: false, active: true },
+    { id: "part-host", employmentType: "partTime", canHost: true, canCoHost: false, active: true },
+    { id: "formal-cohost", employmentType: "formal", canHost: false, canCoHost: true, active: true },
+    { id: "disabled-host", employmentType: "formal", canHost: true, canCoHost: false, active: false }
+  ];
+  assert.deepEqual(Logic.eligiblePeopleForRole(people, "host").map((person) => person.id), ["formal-host", "part-host"]);
+  assert.deepEqual(Logic.eligiblePeopleForRole(people, "coHost").map((person) => person.id), ["formal-cohost"]);
+  assert.deepEqual(Logic.eligiblePeopleForRole(people, "host", ["disabled-host"]).map((person) => person.id), ["formal-host", "part-host", "disabled-host"]);
+});
+
 test("validates performance amounts with at most two decimals", () => {
   assert.deepEqual(Logic.parsePerformanceAmount(""), { valid: true, value: null });
   assert.deepEqual(Logic.parsePerformanceAmount("10000.50"), { valid: true, value: 10000.5 });

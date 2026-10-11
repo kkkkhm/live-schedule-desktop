@@ -329,9 +329,9 @@
     replaceSelectOptions(elements.formalGroupHostInput, formalPeople.filter((person) => person.canHost), elements.formalGroupHostInput.value);
     replaceSelectOptions(elements.formalGroupCoHostInput, formalPeople.filter((person) => person.canCoHost), elements.formalGroupCoHostInput.value);
     replaceSelectOptions(elements.formalGroupShiftInput, shifts, elements.formalGroupShiftInput.value, (shift) => shift.label);
-    const partTime = getPartTimeGroup(); const partTimePeople = state.people.filter((person) => person.employmentType === "partTime" || [partTime.hostId, partTime.coHostId].includes(person.id));
-    replaceSelectOptions(elements.partTimeGroupHostInput, partTimePeople.filter((person) => person.canHost), partTime.hostId);
-    replaceSelectOptions(elements.partTimeGroupCoHostInput, partTimePeople.filter((person) => person.canCoHost), partTime.coHostId);
+    const partTime = getPartTimeGroup(); const selectedPartTimeIds = [partTime.hostId, partTime.coHostId];
+    replaceSelectOptions(elements.partTimeGroupHostInput, Logic.eligiblePeopleForRole(state.people, "host", selectedPartTimeIds), partTime.hostId);
+    replaceSelectOptions(elements.partTimeGroupCoHostInput, Logic.eligiblePeopleForRole(state.people, "coHost", selectedPartTimeIds), partTime.coHostId);
     renderShiftDefinitionsTable(); renderFormalGroupsTable();
   }
   function saveScheduleTargets(event) { event.preventDefault(); const minimumShiftCount = Number(elements.minimumShiftCountInput.value); const minimumTotalHours = Number(elements.minimumTotalHoursInput.value); const defaultOvertimeHours = Number(elements.defaultOvertimeHoursInput.value); elements.scheduleTargetsError.textContent = ""; if (!Number.isInteger(minimumShiftCount) || minimumShiftCount < 1 || minimumShiftCount > shifts.length) return elements.scheduleTargetsError.textContent = `最小班次数必须是1至${Math.max(shifts.length, 1)}之间的整数。`; if (!Number.isFinite(minimumTotalHours) || minimumTotalHours < 0) return elements.scheduleTargetsError.textContent = "最小直播总时长不能小于0。"; if (!Number.isFinite(defaultOvertimeHours) || defaultOvertimeHours <= 0) return elements.scheduleTargetsError.textContent = "默认自动加班时长必须大于0。"; state.settings.scheduleTargets = { minimumShiftCount, minimumTotalHours, defaultOvertimeHours }; saveState(); renderAll(); showToast("最低目标已保存"); }
@@ -398,7 +398,7 @@
     if (!dates.length) return showToast("当前日期区间无效。", true);
     const schedule = getRoomSchedule(false);
     const workbook = new window.ExcelJS.Workbook();
-    workbook.creator = "直播周排班工具";
+    workbook.creator = "直播排班工具";
     workbook.created = new Date();
     const worksheet = workbook.addWorksheet("排班表", { views: [{ state: "frozen", xSplit: 1, ySplit: 2 }] });
     const columnCount = dates.length + 1;

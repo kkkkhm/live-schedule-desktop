@@ -35,7 +35,7 @@ async function run() {
           readyState: document.readyState,
           hasLogic: Boolean(window.ScheduleLogic),
           hasSettingsTab: [...document.querySelectorAll(".tab")].some((item) => item.textContent.trim() === "排班设置"),
-          hasSchedule: document.body.innerText.includes("周排班"),
+          hasSchedule: document.body.innerText.includes("直播排班"),
           storage: localStorage.getItem("desktop-smoke-key")
         });
         })()`
@@ -46,7 +46,7 @@ async function run() {
 
   const value = result.result?.result?.value;
   assert.deepEqual(value, {
-    title: "直播周排班",
+    title: "直播排班",
     readyState: "complete",
     hasLogic: true,
     hasSettingsTab: true,

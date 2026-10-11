@@ -3,7 +3,7 @@
 const { app, BrowserWindow, dialog } = require("electron");
 const path = require("node:path");
 
-const APP_TITLE = "直播周排班工具";
+const APP_TITLE = "直播排班工具";
 let mainWindow = null;
 
 function isTrustedLocalUrl(value) {

@@ -1,9 +1,9 @@
 {
   "name": "live-schedule-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "离线运行的直播排班桌面工具",
-  "author": "直播周排班工具",
+  "author": "直播排班工具",
   "license": "UNLICENSED",
   "main": "desktop/main.js",
   "scripts": {
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "cn.local.live-schedule",
-    "productName": "直播周排班工具",
+    "productName": "直播排班工具",
     "asar": true,
     "directories": {
       "output": "desktop-dist"
