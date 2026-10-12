@@ -38,6 +38,7 @@ async function run() {
           hasUpdateBridge: Boolean(window.desktopUpdates),
           hasMenuBridge: Boolean(window.desktopMenu),
           hasSettingsTab: [...document.querySelectorAll(".tab")].some((item) => item.textContent.trim() === "排班设置"),
+          hasSmartOvertimeSettings: Boolean(document.getElementById("defaultNormalHoursInput") && document.getElementById("maximumOvertimeHoursInput")),
           hasSchedule: document.body.innerText.includes("直播排班"),
           hasExcelImportDialog: Boolean(document.getElementById("excelImportDialog")),
           storage: localStorage.getItem("desktop-smoke-key")
@@ -57,6 +58,7 @@ async function run() {
     hasUpdateBridge: true,
     hasMenuBridge: true,
     hasSettingsTab: true,
+    hasSmartOvertimeSettings: true,
     hasSchedule: true,
     hasExcelImportDialog: true,
     storage: mode === "write" || mode === "check" ? "persisted" : null
