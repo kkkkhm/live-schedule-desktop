@@ -91,5 +91,28 @@ test("prefills a group day from its saved template group id", () => {
   assert.equal(fill.getCell("D7").protection.locked, false);
   assert.ok(config.rowCount > 20);
   console.log("PASS creates a protected four-sheet horizontal schedule workbook");
+
+  fill.getCell("D4").value = "早班";
+  fill.getCell("D5").value = "正常";
+  fill.getCell("D6").value = "正常";
+  fill.getCell("D7").value = "08:00-12:30";
+  const parsed = Excel.parseScheduleTemplateWorkbook(reopened, sampleState());
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.entries[0].dateKey, "2026-10-01");
+  assert.equal(parsed.entries[0].groupId, "g1");
+  assert.equal(parsed.entries[0].shiftId, "s1");
+  assert.equal(parsed.entries[0].roomId, "r1");
+  assert.equal(parsed.entries[0].startTime, "08:00");
+  assert.equal(parsed.entries[0].attendanceTime, "08:00-16:00");
+  console.log("PASS parses mapped schedule entries from the workbook");
+
+  fill.getCell("D8").value = "13:00-17:30";
+  const multipleRooms = Excel.parseScheduleTemplateWorkbook(reopened, sampleState());
+  assert.ok(multipleRooms.errors.some((item) => item.code === "multiple-rooms"));
+  fill.getCell("D8").value = "";
+  fill.getCell("D5").value = "本休";
+  const leaveConflict = Excel.parseScheduleTemplateWorkbook(reopened, sampleState());
+  assert.ok(leaveConflict.errors.some((item) => item.code === "leave-live-conflict"));
+  console.log("PASS blocks multiple rooms and leave-live contradictions");
   console.log("All Excel domain tests passed.");
 })().catch((error) => { console.error("FAIL creates horizontal schedule workbook"); throw error; });

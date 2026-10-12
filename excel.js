@@ -234,5 +234,88 @@
     return workbook;
   }
 
-  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createScheduleTemplateWorkbook, stableStringify };
+  function cellText(cell) {
+    const value = cell?.value;
+    if (value === null || value === undefined) return "";
+    if (typeof value === "object") return String(value.result ?? value.text ?? "").trim();
+    return String(value).trim();
+  }
+
+  function parseTimeRange(value) {
+    const match = /^(\d{2}:\d{2})\s*[-–—]\s*(\d{2}:\d{2})$/.exec(String(value || "").trim());
+    if (!match) return null;
+    return { start: match[1], end: match[2] };
+  }
+
+  function parseScheduleTemplateWorkbook(workbook, state) {
+    const errors = [];
+    const warnings = [];
+    const sheet = workbook?.getWorksheet?.("排班填写表");
+    const config = workbook?.getWorksheet?.("模板配置");
+    if (!sheet || !config) return { entries: [], errors: [{ code: "missing-sheet", message: "缺少排班填写表或模板配置" }], warnings };
+    const metadata = new Map();
+    for (let row = 1; row <= 5; row += 1) metadata.set(cellText(config.getCell(row, 1)), cellText(config.getCell(row, 2)));
+    if (metadata.get("templateType") !== "schedule") errors.push({ code: "wrong-template", message: "不是排班模板" });
+    if (Number(metadata.get("templateVersion")) !== TEMPLATE_VERSION) errors.push({ code: "version-mismatch", message: "模板版本不兼容" });
+    if (metadata.get("fingerprint") !== configurationFingerprint(state)) errors.push({ code: "configuration-changed", message: "班组、人员、班次或直播间配置已变化" });
+    const configById = activeConfiguration(state);
+    const groups = new Map(configById.groups.map((item) => [item.id, item]));
+    const shiftsByName = new Map(configById.shifts.map((item) => [item.name, item]));
+    const rooms = new Map(configById.rooms.map((item) => [item.id, item]));
+    const buckets = new Map();
+    for (let row = 8; row <= config.rowCount; row += 1) {
+      const address = cellText(config.getCell(row, 1));
+      const dateKey = cellText(config.getCell(row, 2));
+      const groupId = cellText(config.getCell(row, 3));
+      const field = cellText(config.getCell(row, 4));
+      const roomId = cellText(config.getCell(row, 5));
+      const personId = cellText(config.getCell(row, 6));
+      if (!address && !dateKey && !groupId && !field) continue;
+      if (!address || !Logic.parseLocalDate(dateKey) || !groups.has(groupId) || !field || !sheet.getCell(address)) {
+        errors.push({ code: "invalid-mapping", cell: address, message: `模板映射无效：${address || `第${row}行`}` });
+        continue;
+      }
+      const key = `${dateKey}:${groupId}`;
+      if (!buckets.has(key)) buckets.set(key, { dateKey, groupId, group: groups.get(groupId), liveRanges: [] });
+      const bucket = buckets.get(key);
+      const value = cellText(sheet.getCell(address));
+      if (field === "liveTime" && value) bucket.liveRanges.push({ roomId, value, cell: address });
+      else if (field === "hostStatus") { bucket.hostStatus = value; bucket.hostId = personId; }
+      else if (field === "coHostStatus") { bucket.coHostStatus = value; bucket.coHostId = personId; }
+      else bucket[field] = value;
+    }
+
+    const entries = [];
+    const restValues = new Set(["本休", "调休"]);
+    buckets.forEach((bucket) => {
+      if (bucket.liveRanges.length > 1) errors.push({ code: "multiple-rooms", dateKey: bucket.dateKey, groupId: bucket.groupId, message: `${bucket.dateKey} ${bucket.group.name} 同时填写了多个直播间` });
+      const live = bucket.liveRanges[0];
+      const shiftIsRest = ["本休", "调休", "未排班"].includes(bucket.shift);
+      if ((shiftIsRest || restValues.has(bucket.hostStatus) || restValues.has(bucket.coHostStatus)) && (live || bucket.overtimeTime)) {
+        errors.push({ code: "leave-live-conflict", dateKey: bucket.dateKey, groupId: bucket.groupId, message: `${bucket.dateKey} ${bucket.group.name} 休假状态与直播时间冲突` });
+      }
+      const shift = bucket.shift ? shiftsByName.get(bucket.shift) : null;
+      if (bucket.shift && !shift && !shiftIsRest) errors.push({ code: "unknown-shift", dateKey: bucket.dateKey, groupId: bucket.groupId, message: `不存在班次：${bucket.shift}` });
+      let range = null;
+      let attendanceTime = "";
+      if (live) {
+        if (!rooms.has(live.roomId)) errors.push({ code: "unknown-room", message: `不存在直播间：${live.roomId}` });
+        range = parseTimeRange(live.value);
+        if (!range) errors.push({ code: "invalid-live-time", cell: live.cell, message: `直播时间格式无效：${live.value}` });
+        else {
+          const validation = Logic.validateLiveTimeRange(range.start, range.end);
+          if (!validation.valid) errors.push({ code: validation.code, cell: live.cell, message: `直播时间不在允许的出勤区间：${live.value}` });
+          else attendanceTime = `${validation.attendance.start}-${validation.attendance.end}`;
+        }
+      }
+      const overtime = bucket.overtimeTime ? parseTimeRange(bucket.overtimeTime) : null;
+      if (bucket.overtimeTime && (!overtime || Logic.timeToMinutes(overtime.end) <= Logic.timeToMinutes(overtime.start))) errors.push({ code: "invalid-overtime", message: `加班时间无效：${bucket.overtimeTime}` });
+      if (bucket.shift || live || bucket.overtimeTime || bucket.note || bucket.hostStatus || bucket.coHostStatus) entries.push({
+        dateKey: bucket.dateKey, groupId: bucket.groupId, shiftId: shift?.id || "", shiftStatus: shiftIsRest ? bucket.shift : "", hostId: bucket.hostId || bucket.group.hostId, coHostId: bucket.coHostId || bucket.group.coHostId, hostStatus: bucket.hostStatus || "", coHostStatus: bucket.coHostStatus || "", roomId: live?.roomId || "", startTime: range?.start || "", endTime: range?.end || "", overtimeStartTime: overtime?.start || "", overtimeEndTime: overtime?.end || "", attendanceTime, note: bucket.note || ""
+      });
+    });
+    return { entries, errors, warnings, metadata: Object.fromEntries(metadata) };
+  }
+
+  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createScheduleTemplateWorkbook, parseScheduleTemplateWorkbook, stableStringify };
 });
