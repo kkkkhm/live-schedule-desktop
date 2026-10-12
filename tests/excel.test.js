@@ -114,5 +114,36 @@ test("prefills a group day from its saved template group id", () => {
   const leaveConflict = Excel.parseScheduleTemplateWorkbook(reopened, sampleState());
   assert.ok(leaveConflict.errors.some((item) => item.code === "leave-live-conflict"));
   console.log("PASS blocks multiple rooms and leave-live contradictions");
+
+  const importState = sampleState();
+  importState.settings.lastRoomKey = "r1";
+  importState.schedules.r1.days["2026-10-01"].s1.performanceAmount = 10000;
+  const parsedImport = {
+    errors: [], warnings: [], entries: [
+      { dateKey: "2026-10-01", groupId: "g1", shiftId: "s1", hostId: "h1", coHostId: "c1", hostStatus: "正常", coHostStatus: "正常", roomId: "r1", startTime: "08:30", endTime: "12:30", overtimeStartTime: "", overtimeEndTime: "", note: "已修改" },
+      { dateKey: "2026-10-02", groupId: "g2", shiftId: "s2", hostId: "h2", coHostId: "c2", hostStatus: "正常", coHostStatus: "正常", roomId: "r2", startTime: "13:00", endTime: "17:30", overtimeStartTime: "", overtimeEndTime: "", note: "新增" }
+    ]
+  };
+  const preview = Excel.prepareScheduleImport(importState, parsedImport, "merge");
+  assert.deepEqual(preview.counts, { added: 1, updated: 1, skipped: 0 });
+  assert.equal(importState.schedules.r1.days["2026-10-01"].s1.startTime, "08:00");
+  assert.equal(preview.nextState.schedules.r1.days["2026-10-01"].s1.startTime, "08:30");
+  assert.equal(preview.nextState.schedules.r1.days["2026-10-01"].s1.performanceAmount, 10000);
+  assert.equal(preview.nextState.schedules.r1.days["2026-10-02"].s2.roomId, "r2");
+  console.log("PASS prepares schedule imports transactionally and preserves performance");
+
+  const blankEditableFields = { errors: [], warnings: [], entries: [{ ...parsedImport.entries[0], note: "", overtimeStartTime: "", overtimeEndTime: "" }] };
+  const merged = Excel.prepareScheduleImport(importState, blankEditableFields, "merge");
+  const replaced = Excel.prepareScheduleImport(importState, blankEditableFields, "replace");
+  assert.equal(merged.nextState.schedules.r1.days["2026-10-01"].s1.note, "测试");
+  assert.equal(merged.nextState.schedules.r1.days["2026-10-01"].s1.overtimeStartTime, "12:30");
+  assert.equal(replaced.nextState.schedules.r1.days["2026-10-01"].s1.note, "");
+  assert.equal(replaced.nextState.schedules.r1.days["2026-10-01"].s1.overtimeStartTime, "");
+  console.log("PASS applies merge and complete replacement modes independently");
+
+  const blocked = Excel.prepareScheduleImport(importState, { entries: [], errors: [{ code: "blocked", message: "错误" }], warnings: [] }, "merge");
+  assert.equal(blocked.nextState, null);
+  assert.equal(blocked.counts.added, 0);
+  console.log("PASS refuses to prepare a partial state when blocking errors exist");
   console.log("All Excel domain tests passed.");
 })().catch((error) => { console.error("FAIL creates horizontal schedule workbook"); throw error; });

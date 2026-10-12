@@ -317,5 +317,102 @@
     return { entries, errors, warnings, metadata: Object.fromEntries(metadata) };
   }
 
-  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createScheduleTemplateWorkbook, parseScheduleTemplateWorkbook, stableStringify };
+  function locateGroupSlot(state, entry) {
+    for (const [rootId, schedule] of Object.entries(state.schedules || {})) {
+      const day = schedule?.days?.[entry.dateKey];
+      for (const [shiftId, slot] of Object.entries(day || {})) {
+        if (!slot || typeof slot !== "object") continue;
+        if (slot.templateGroupId === entry.groupId || (!slot.templateGroupId && slot.hostId === entry.hostId && slot.coHostId === entry.coHostId)) return { rootId, schedule, day, shiftId, slot };
+      }
+    }
+    return null;
+  }
+
+  function ensureImportDay(state, rootId, dateKey) {
+    if (!state.schedules) state.schedules = {};
+    if (!state.schedules[rootId]) {
+      const room = (state.rooms || []).find((item) => item.id === rootId);
+      state.schedules[rootId] = { roomId: rootId, roomNameSnapshot: room?.name || "", roomAccountSnapshot: room?.account || "", days: {} };
+    }
+    if (!state.schedules[rootId].days) state.schedules[rootId].days = {};
+    if (!state.schedules[rootId].days[dateKey]) state.schedules[rootId].days[dateKey] = { leavePeople: [], leaveNote: "" };
+    const day = state.schedules[rootId].days[dateKey];
+    if (!Array.isArray(day.leavePeople)) day.leavePeople = [];
+    return day;
+  }
+
+  function updateLeaveStatus(day, state, personId, status) {
+    if (!personId || !status) return false;
+    const index = day.leavePeople.findIndex((item) => item.personId === personId);
+    if (status === "正常") {
+      if (index < 0) return false;
+      day.leavePeople.splice(index, 1);
+      return true;
+    }
+    if (status !== "本休" && status !== "调休") return false;
+    const person = (state.people || []).find((item) => item.id === personId);
+    const next = { personId, personNameSnapshot: person?.name || "", status };
+    if (index >= 0 && day.leavePeople[index].status === status) return false;
+    if (index >= 0) day.leavePeople[index] = next;
+    else day.leavePeople.push(next);
+    return true;
+  }
+
+  function prepareScheduleImport(state, parsed, mode = "merge") {
+    const counts = { added: 0, updated: 0, skipped: 0 };
+    const errors = [...(parsed?.errors || [])];
+    const warnings = [...(parsed?.warnings || [])];
+    if (errors.length) return { nextState: null, counts, errors, warnings, changes: [] };
+    const nextState = clone(state);
+    const shifts = new Map(activeConfiguration(nextState).shifts.map((item) => [item.id, item]));
+    const groups = new Map(activeConfiguration(nextState).groups.map((item) => [item.id, item]));
+    const defaultRootId = nextState.settings?.lastRoomKey || (nextState.rooms || []).find((item) => item.active !== false)?.id || Object.keys(nextState.schedules || {})[0] || "unassigned";
+    const changes = [];
+    (parsed.entries || []).forEach((entry) => {
+      const group = groups.get(entry.groupId);
+      const shift = shifts.get(entry.shiftId);
+      if (!group) { errors.push({ code: "unknown-group", message: `不存在班组：${entry.groupId}` }); return; }
+      const existing = locateGroupSlot(nextState, entry);
+      const rootId = existing?.rootId || defaultRootId;
+      const day = ensureImportDay(nextState, rootId, entry.dateKey);
+      let changed = updateLeaveStatus(day, nextState, entry.hostId || group.hostId, entry.hostStatus);
+      changed = updateLeaveStatus(day, nextState, entry.coHostId || group.coHostId, entry.coHostStatus) || changed;
+      const rest = entry.shiftStatus || [entry.hostStatus, entry.coHostStatus].some((value) => value === "本休" || value === "调休");
+      if (rest || (mode === "replace" && !entry.startTime && !entry.endTime)) {
+        if (existing) { delete existing.day[existing.shiftId]; changed = true; }
+        counts[changed ? "updated" : "skipped"] += 1;
+        if (changed) changes.push({ type: "updated", dateKey: entry.dateKey, groupId: entry.groupId });
+        return;
+      }
+      if (!entry.startTime || !entry.endTime || !entry.shiftId) {
+        counts[changed ? "updated" : "skipped"] += 1;
+        if (changed) changes.push({ type: "updated", dateKey: entry.dateKey, groupId: entry.groupId });
+        return;
+      }
+      const host = (nextState.people || []).find((item) => item.id === (entry.hostId || group.hostId));
+      const coHost = (nextState.people || []).find((item) => item.id === (entry.coHostId || group.coHostId));
+      const room = (nextState.rooms || []).find((item) => item.id === entry.roomId);
+      const base = existing ? clone(existing.slot) : {};
+      const assign = (key, value) => { if (mode === "replace" || value !== "") base[key] = value; };
+      assign("startTime", entry.startTime || "");
+      assign("endTime", entry.endTime || "");
+      assign("overtimeStartTime", entry.overtimeStartTime || "");
+      assign("overtimeEndTime", entry.overtimeEndTime || "");
+      assign("note", entry.note || "");
+      Object.assign(base, { templateGroupId: entry.groupId, shiftLabelSnapshot: shift?.name || "", hostId: entry.hostId || group.hostId, coHostId: entry.coHostId || group.coHostId, hostNameSnapshot: host?.name || "", coHostNameSnapshot: coHost?.name || "", roomId: entry.roomId, roomNameSnapshot: room?.name || "", roomAccountSnapshot: room?.account || "" });
+      const before = existing ? JSON.stringify(existing.slot) : "";
+      if (existing && (existing.shiftId !== entry.shiftId || existing.day !== day)) delete existing.day[existing.shiftId];
+      day[entry.shiftId] = base;
+      const type = existing ? (before === JSON.stringify(base) && !changed ? "skipped" : "updated") : "added";
+      counts[type] += 1;
+      if (type !== "skipped") changes.push({ type, dateKey: entry.dateKey, groupId: entry.groupId, shiftId: entry.shiftId });
+    });
+    if (errors.length) return { nextState: null, counts: { added: 0, updated: 0, skipped: 0 }, errors, warnings, changes: [] };
+    Object.values(nextState.schedules || {}).forEach((schedule) => {
+      Logic.findConflicts(schedule?.days || {}, nextState.people || []).forEach((conflict) => warnings.push({ code: conflict.type, dateKey: conflict.dayKey, message: `${conflict.dayKey} 存在排班冲突` }));
+    });
+    return { nextState, counts, errors, warnings, changes };
+  }
+
+  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createScheduleTemplateWorkbook, parseScheduleTemplateWorkbook, prepareScheduleImport, stableStringify };
 });
