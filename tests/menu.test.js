@@ -37,7 +37,9 @@ function fakeWindow(initialZoom = 1) {
   const help = findMenu(template, "帮助");
   assert.ok(file && view && help, "Windows menu should contain File, View and Help");
   assert.deepEqual(file.submenu.filter((item) => item.label).map((item) => item.label), [
-    "导入 JSON 备份", "导出 JSON 备份", "导出排班 Excel", "导出排班 CSV", "导出时长统计 CSV", "退出",
+    "导入排班模板", "导出可编辑排班模板", "下载空白排班模板", "导出展示版排班表",
+    "导入业绩表", "导出业绩表", "下载空白业绩模板",
+    "导入 JSON 备份", "导出 JSON 备份", "导出排班 CSV", "导出时长统计 CSV", "退出",
   ]);
   assert.deepEqual(view.submenu.map((item) => item.label), ["放大", "缩小", "恢复默认大小"]);
   assert.deepEqual(help.submenu.map((item) => item.label), ["检查更新", "帮助文档"]);
@@ -64,7 +66,13 @@ assert.equal(AppMenu.HELP_URL, "https://github.com/kkkkhm/live-schedule-desktop#
 assert.deepEqual(AppMenu.RENDERER_COMMANDS, [
   "import-backup",
   "export-backup",
-  "export-schedule-xlsx",
+  "import-schedule-template",
+  "export-editable-schedule-template",
+  "download-blank-schedule-template",
+  "export-display-schedule-xlsx",
+  "import-performance-template",
+  "export-performance-template",
+  "download-blank-performance-template",
   "export-schedule-csv",
   "export-stats-csv",
   "check-update",

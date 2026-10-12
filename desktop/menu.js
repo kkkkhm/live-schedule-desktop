@@ -4,7 +4,13 @@ const HELP_URL = "https://github.com/kkkkhm/live-schedule-desktop#readme";
 const RENDERER_COMMANDS = Object.freeze([
   "import-backup",
   "export-backup",
-  "export-schedule-xlsx",
+  "import-schedule-template",
+  "export-editable-schedule-template",
+  "download-blank-schedule-template",
+  "export-display-schedule-xlsx",
+  "import-performance-template",
+  "export-performance-template",
+  "download-blank-performance-template",
   "export-schedule-csv",
   "export-stats-csv",
   "check-update",
@@ -57,10 +63,18 @@ async function openHelp(shell, dialog) {
 
 function buildFileMenu(getWindow, platform) {
   const submenu = [
+    { label: "导入排班模板", click: () => sendRendererCommand(getWindow, "import-schedule-template") },
+    { label: "导出可编辑排班模板", click: () => sendRendererCommand(getWindow, "export-editable-schedule-template") },
+    { label: "下载空白排班模板", click: () => sendRendererCommand(getWindow, "download-blank-schedule-template") },
+    { label: "导出展示版排班表", click: () => sendRendererCommand(getWindow, "export-display-schedule-xlsx") },
+    { type: "separator" },
+    { label: "导入业绩表", click: () => sendRendererCommand(getWindow, "import-performance-template") },
+    { label: "导出业绩表", click: () => sendRendererCommand(getWindow, "export-performance-template") },
+    { label: "下载空白业绩模板", click: () => sendRendererCommand(getWindow, "download-blank-performance-template") },
+    { type: "separator" },
     { label: "导入 JSON 备份", click: () => sendRendererCommand(getWindow, "import-backup") },
     { type: "separator" },
     { label: "导出 JSON 备份", click: () => sendRendererCommand(getWindow, "export-backup") },
-    { label: "导出排班 Excel", click: () => sendRendererCommand(getWindow, "export-schedule-xlsx") },
     { label: "导出排班 CSV", click: () => sendRendererCommand(getWindow, "export-schedule-csv") },
     { label: "导出时长统计 CSV", click: () => sendRendererCommand(getWindow, "export-stats-csv") },
   ];

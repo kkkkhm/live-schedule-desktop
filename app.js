@@ -1,6 +1,7 @@
 (function () {
   "use strict";
   const Logic = window.ScheduleLogic;
+  const Spreadsheet = window.ScheduleExcel;
   const STORAGE_KEY = "weekly-live-scheduler-v1";
   const PRE_V4_BACKUP_KEY = "weekly-live-scheduler-v3-pre-v4-backup";
   const VERSION = 5;
@@ -33,6 +34,7 @@
   let hoverRangeEnd = "";
   let openLeaveDateKey = "";
   let performanceRangeMode = ["current", "30d", "3m", "all"].includes(state.settings?.performanceRangeMode) ? state.settings.performanceRangeMode : "current";
+  let pendingExcelImport = null;
   let toastTimer;
   document.addEventListener("DOMContentLoaded", initialize);
 
@@ -45,7 +47,7 @@
       scheduleTargetsForm: byId("scheduleTargetsForm"), minimumShiftCountInput: byId("minimumShiftCountInput"), minimumTotalHoursInput: byId("minimumTotalHoursInput"), defaultOvertimeHoursInput: byId("defaultOvertimeHoursInput"), scheduleTargetsError: byId("scheduleTargetsError"), shiftDefinitionForm: byId("shiftDefinitionForm"), shiftDefinitionIdInput: byId("shiftDefinitionIdInput"), shiftDefinitionNameInput: byId("shiftDefinitionNameInput"), shiftDefinitionRoomInput: byId("shiftDefinitionRoomInput"), shiftDefinitionStartInput: byId("shiftDefinitionStartInput"), shiftDefinitionEndInput: byId("shiftDefinitionEndInput"), shiftDefinitionOvertimeInput: byId("shiftDefinitionOvertimeInput"), shiftDefinitionPriorityInput: byId("shiftDefinitionPriorityInput"), saveShiftDefinitionBtn: byId("saveShiftDefinitionBtn"), cancelShiftDefinitionBtn: byId("cancelShiftDefinitionBtn"), shiftDefinitionError: byId("shiftDefinitionError"), shiftDefinitionsTableBody: byId("shiftDefinitionsTableBody"), formalGroupForm: byId("formalGroupForm"), formalGroupIdInput: byId("formalGroupIdInput"), formalGroupNameInput: byId("formalGroupNameInput"), formalGroupHostInput: byId("formalGroupHostInput"), formalGroupCoHostInput: byId("formalGroupCoHostInput"), formalGroupShiftInput: byId("formalGroupShiftInput"), saveFormalGroupBtn: byId("saveFormalGroupBtn"), cancelFormalGroupBtn: byId("cancelFormalGroupBtn"), formalGroupError: byId("formalGroupError"), formalGroupsTableBody: byId("formalGroupsTableBody"), partTimeGroupForm: byId("partTimeGroupForm"), partTimeGroupHostInput: byId("partTimeGroupHostInput"), partTimeGroupCoHostInput: byId("partTimeGroupCoHostInput"), partTimeGroupError: byId("partTimeGroupError"),
       roomForm: byId("roomForm"), roomIdInput: byId("roomIdInput"), roomNameInput: byId("roomNameInput"), roomAccountInput: byId("roomAccountInput"), saveRoomBtn: byId("saveRoomBtn"), cancelRoomEditBtn: byId("cancelRoomEditBtn"), roomFormError: byId("roomFormError"), roomsTableBody: byId("roomsTableBody"),
       personForm: byId("personForm"), personIdInput: byId("personIdInput"), personNameInput: byId("personNameInput"), canHostInput: byId("canHostInput"), canCoHostInput: byId("canCoHostInput"), employmentTypeInput: byId("employmentTypeInput"), savePersonBtn: byId("savePersonBtn"), cancelPersonEditBtn: byId("cancelPersonEditBtn"), personFormError: byId("personFormError"), peopleTableBody: byId("peopleTableBody"),
-      statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), importFileInput: byId("importFileInput"), toast: byId("toast")
+      statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), importFileInput: byId("importFileInput"), scheduleExcelInput: byId("scheduleExcelInput"), performanceExcelInput: byId("performanceExcelInput"), excelImportDialog: byId("excelImportDialog"), excelImportTitle: byId("excelImportTitle"), excelImportFileName: byId("excelImportFileName"), excelImportCounts: byId("excelImportCounts"), excelImportMode: byId("excelImportMode"), excelImportErrors: byId("excelImportErrors"), excelImportWarnings: byId("excelImportWarnings"), confirmExcelImportBtn: byId("confirmExcelImportBtn"), toast: byId("toast")
     });
     if (!roomKeyExists(selectedRoomKey)) selectedRoomKey = state.rooms.find((room) => room.active)?.id || Object.keys(state.schedules)[0] || "";
     if (selectedRoomKey) state.settings.lastRoomKey = selectedRoomKey;
@@ -85,6 +87,11 @@
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
     elements.roomForm.addEventListener("submit", saveRoom); elements.cancelRoomEditBtn.addEventListener("click", resetRoomForm); elements.personForm.addEventListener("submit", savePerson); elements.cancelPersonEditBtn.addEventListener("click", resetPersonForm);
     elements.importFileInput.addEventListener("change", importJson);
+    elements.scheduleExcelInput.addEventListener("change", (event) => importExcelFile(event, "schedule"));
+    elements.performanceExcelInput.addEventListener("change", (event) => importExcelFile(event, "performance"));
+    elements.excelImportMode.addEventListener("change", renderExcelImportPreview);
+    elements.confirmExcelImportBtn.addEventListener("click", confirmExcelImport);
+    elements.excelImportDialog.addEventListener("close", () => { pendingExcelImport = null; });
     window.desktopMenu?.onCommand(handleDesktopMenuCommand);
     document.addEventListener("click", (event) => { if (!(event.target instanceof Element)) return; if (!elements.rangePickerPanel.hidden && !event.target.closest(".range-picker-wrap")) closeRangePicker(); if (!event.target.closest(".leave-picker")) { openLeaveDateKey = ""; document.querySelectorAll(".leave-picker[open]").forEach((picker) => { picker.open = false; }); } });
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !elements.rangePickerPanel.hidden) closeRangePicker(); });
@@ -93,7 +100,13 @@
     const actions = {
       "import-backup": () => elements.importFileInput.click(),
       "export-backup": exportJson,
-      "export-schedule-xlsx": exportScheduleXlsx,
+      "import-schedule-template": () => elements.scheduleExcelInput.click(),
+      "export-editable-schedule-template": () => exportScheduleTemplate(true),
+      "download-blank-schedule-template": () => exportScheduleTemplate(false),
+      "export-display-schedule-xlsx": exportScheduleXlsx,
+      "import-performance-template": () => elements.performanceExcelInput.click(),
+      "export-performance-template": () => exportPerformanceTemplate(false),
+      "download-blank-performance-template": () => exportPerformanceTemplate(true),
       "export-schedule-csv": exportScheduleCsv,
       "export-stats-csv": exportStatsCsv,
       "check-update": () => checkDesktopUpdate(true)
@@ -409,6 +422,83 @@
   function conflictText(conflict) { const date = Logic.parseLocalDate(conflict.dayKey); const prefix = date ? `${conflict.dayKey}（${weekdays[date.getDay()]}）` : conflict.dayKey; const names = (conflict.shifts || []).map((key) => [...allShiftDefinitions(), ...legacyOvertimeShifts].find((shift) => shift.key === key)?.label || key).join("、"); if (conflict.type === "overlap") return `${prefix}：${conflict.personName}在${names}时间重叠。`; if (conflict.type === "same-role-person") return `${prefix}${names}：主播和副播不能是同一人（统计仅计一次）。`; if (conflict.type === "leave-scheduled") return `${prefix}：${conflict.personName}已休假，但仍安排在${names}。`; return `${prefix}${names}：已安排人员，但直播时间无效。`; }
   function exportJson() { downloadFile(`直播排班备份-${todayStamp()}.json`, JSON.stringify(state, null, 2), "application/json;charset=utf-8"); showToast("JSON 备份已导出"); }
   async function importJson(event) { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { const migrated = Logic.migrateState(JSON.parse(await file.text())); if (!window.confirm("导入会覆盖当前直播间、人员和全部排班数据。是否继续？")) return; state = migrated; syncActiveShifts(); selectedRoomKey = state.settings.lastRoomKey || ""; selectedStart = validDateKey(state.settings.rangeStart) ? state.settings.rangeStart : Logic.toIsoDate(new Date()); selectedEnd = validDateKey(state.settings.rangeEnd) ? state.settings.rangeEnd : Logic.toIsoDate(Logic.addDays(new Date(), 6)); saveState(); resetRoomForm(); resetPersonForm(); resetShiftDefinitionForm(); resetFormalGroupForm(); renderRangePickerButton(); renderAll(); renderOverview(); showToast("备份已导入并升级为 V5"); } catch (error) { showToast(`导入失败：${error.message}`, true); } }
+
+  async function exportScheduleTemplate(prefill) {
+    if (!Spreadsheet || !window.ExcelJS) return showToast("Excel 组件未加载，请重启应用后重试。", true);
+    try {
+      showToast("正在生成排班模板…");
+      const workbook = await Spreadsheet.createScheduleTemplateWorkbook(window.ExcelJS, state, selectedStart, selectedEnd, prefill);
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadFile(`${prefill ? "可编辑排班模板" : "空白排班模板"}-${selectedStart}-${selectedEnd}.xlsx`, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      showToast(prefill ? "可编辑排班模板已导出" : "空白排班模板已下载");
+    } catch (error) { console.error(error); showToast(`排班模板生成失败：${error.message}`, true); }
+  }
+
+  function stateWithoutPerformance() {
+    const output = clone(state);
+    Object.values(output.schedules || {}).forEach((schedule) => Object.values(schedule?.days || {}).forEach((day) => Object.values(day || {}).forEach((slot) => { if (slot && typeof slot === "object") { delete slot.performanceAmount; delete slot.performanceUpdatedAt; } })));
+    return output;
+  }
+
+  async function exportPerformanceTemplate(blank) {
+    if (!Spreadsheet || !window.ExcelJS) return showToast("Excel 组件未加载，请重启应用后重试。", true);
+    try {
+      const workbook = Spreadsheet.createPerformanceWorkbook(window.ExcelJS, blank ? stateWithoutPerformance() : state, selectedStart, selectedEnd);
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadFile(`${blank ? "空白业绩模板" : "业绩表"}-${selectedStart}-${selectedEnd}.xlsx`, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      showToast(blank ? "空白业绩模板已下载" : "业绩表已导出");
+    } catch (error) { console.error(error); showToast(`业绩表生成失败：${error.message}`, true); }
+  }
+
+  async function importExcelFile(event, kind) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!Spreadsheet || !window.ExcelJS) return showToast("Excel 组件未加载，请重启应用后重试。", true);
+    try {
+      showToast("正在读取 Excel 文件…");
+      const workbook = new window.ExcelJS.Workbook();
+      await workbook.xlsx.load(await file.arrayBuffer());
+      const parsed = kind === "schedule" ? Spreadsheet.parseScheduleTemplateWorkbook(workbook, state) : Spreadsheet.parsePerformanceWorkbook(workbook, state);
+      pendingExcelImport = { kind, fileName: file.name, parsed, preview: null };
+      elements.excelImportMode.value = "merge";
+      elements.excelImportMode.disabled = kind === "performance";
+      renderExcelImportPreview();
+      elements.excelImportDialog.showModal();
+    } catch (error) { console.error(error); showToast(`Excel 导入失败：${error.message}`, true); }
+  }
+
+  function renderMessageList(container, items, className, emptyText) {
+    container.replaceChildren();
+    if (!items.length) { const text = document.createElement("span"); text.textContent = emptyText; container.appendChild(text); return; }
+    items.forEach((item) => { const row = document.createElement("div"); row.className = className; row.textContent = item.message || item.code || "未知问题"; container.appendChild(row); });
+  }
+
+  function renderExcelImportPreview() {
+    if (!pendingExcelImport) return;
+    const mode = elements.excelImportMode.value;
+    const preview = pendingExcelImport.kind === "schedule" ? Spreadsheet.prepareScheduleImport(state, pendingExcelImport.parsed, mode) : Spreadsheet.preparePerformanceImport(state, pendingExcelImport.parsed);
+    pendingExcelImport.preview = preview;
+    elements.excelImportTitle.textContent = pendingExcelImport.kind === "schedule" ? "排班模板导入预览" : "业绩表导入预览";
+    elements.excelImportFileName.textContent = pendingExcelImport.fileName;
+    elements.excelImportCounts.replaceChildren(...[["新增", preview.counts.added], ["更新", preview.counts.updated], ["跳过", preview.counts.skipped]].map(([label, value]) => { const box = document.createElement("div"); const strong = document.createElement("strong"); strong.textContent = value; const span = document.createElement("span"); span.textContent = label; box.append(strong, span); return box; }));
+    renderMessageList(elements.excelImportErrors, preview.errors, "error", "无阻断错误");
+    renderMessageList(elements.excelImportWarnings, preview.warnings, "warning", "无业务警告");
+    elements.confirmExcelImportBtn.disabled = Boolean(preview.errors.length || !preview.nextState);
+  }
+
+  function confirmExcelImport() {
+    const preview = pendingExcelImport?.preview;
+    if (!preview?.nextState || preview.errors.length) return;
+    state = preview.nextState;
+    syncActiveShifts();
+    saveState();
+    renderAll();
+    renderOverview();
+    elements.excelImportDialog.close();
+    showToast(`导入完成：新增 ${preview.counts.added}、更新 ${preview.counts.updated}、跳过 ${preview.counts.skipped}`);
+  }
+
   function exportScheduleCsv() { if (!selectedRoomKey) return showToast("请先选择直播间。", true); const schedule = getRoomSchedule(false); const info = roomInfo(selectedRoomKey, schedule); const rows = [["日期", "星期", "班次", "班组类型", "直播间名称", "账号", "主播", "主播用工类型", "副播", "副播用工类型", "开始时间", "结束时间", "直播时长", "加班开始", "加班结束", "加班时长", "备注", "休假人员", "休假备注"]]; currentDates().forEach((date) => { const dateKey = Logic.toIsoDate(date); const day = schedule?.days?.[dateKey]; if (!day) return; let added = false; [...allShiftDefinitions(), ...legacyOvertimeShifts].forEach((shift) => { const slot = day[shift.key]; if (!slot || (!slot.hostId && !slot.coHostId && !slot.note)) return; const host = state.people.find((p) => p.id === slot.hostId); const coHost = state.people.find((p) => p.id === slot.coHostId); const slotRoom = state.rooms.find((r) => r.id === slot.roomId); rows.push([dateKey, weekdays[date.getDay()], slot.shiftLabelSnapshot || shift.label, slot.groupType === "partTime" ? "兼职" : "正式", slotRoom?.name || slot.roomNameSnapshot || info.name, slotRoom?.account || slot.roomAccountSnapshot || info.account, host?.name || slot.hostNameSnapshot || "", employmentLabel(host), coHost?.name || slot.coHostNameSnapshot || "", employmentLabel(coHost), slot.startTime || "", slot.endTime || "", shift.isOvertime ? "" : formatHours(Logic.durationHours(slot.startTime, slot.endTime)), shift.isOvertime ? slot.startTime || "" : slot.overtimeStartTime || "", shift.isOvertime ? slot.endTime || "" : slot.overtimeEndTime || "", formatHours(shift.isOvertime ? Logic.durationHours(slot.startTime, slot.endTime) : Logic.durationHours(slot.overtimeStartTime, slot.overtimeEndTime)), slot.note || "", leaveNames(day), day.leaveNote || ""]); added = true; }); if (!added && (day.leavePeople?.length || day.leaveNote)) rows.push([dateKey, weekdays[date.getDay()], "休假", "", info.name, info.account, "", "", "", "", "", "", "", "", "", "", "", leaveNames(day), day.leaveNote || ""]); }); downloadCsv(`排班-${info.name}-${selectedStart}-${selectedEnd}.csv`, rows); }
 
   function scheduleCellText(day, shift) {

@@ -298,6 +298,24 @@ main { padding: 24px 36px 48px; }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.error { background: var(--danger); }
 
+.import-dialog { width: min(720px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 12px; box-shadow: 0 24px 70px rgba(20,35,60,.28); }
+.import-dialog::backdrop { background: rgba(17,28,48,.45); }
+.import-dialog-card { padding: 20px; }
+.import-dialog-card header, .import-dialog-card footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.import-dialog-card header h2 { margin: 0 0 4px; }
+.import-dialog-card header p { margin: 0; color: var(--muted); }
+.import-dialog-card section { margin-top: 16px; }
+.import-dialog-card section h3 { margin: 0 0 8px; font-size: 14px; }
+.import-dialog-card footer { justify-content: flex-end; margin-top: 20px; }
+.import-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+.import-counts div { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-soft); text-align: center; }
+.import-counts strong { display: block; font-size: 22px; }
+.import-mode { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.import-mode select { min-width: 230px; }
+.import-messages { max-height: 140px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-soft); padding: 9px 11px; color: var(--muted); font-size: 12px; }
+.import-messages .error { color: var(--danger); }
+.import-messages .warning { color: #9a6208; }
+
 @media (max-width: 1200px) {
   .app-header { padding-left: 22px; padding-right: 22px; }
   main { padding-left: 22px; padding-right: 22px; }
