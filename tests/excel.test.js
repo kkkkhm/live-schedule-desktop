@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const Excel = require("../excel.js");
+const ExcelJS = require("../vendor/exceljs.min.js");
 
 function test(name, fn) {
   try { fn(); console.log(`PASS ${name}`); }
@@ -68,4 +69,27 @@ test("prefills a group day from its saved template group id", () => {
   assert.equal(day.note, "测试");
 });
 
-console.log("All Excel domain tests passed.");
+(async () => {
+  const workbook = await Excel.createScheduleTemplateWorkbook(ExcelJS, sampleState(), "2026-10-01", "2026-10-07", true);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const reopened = new ExcelJS.Workbook();
+  await reopened.xlsx.load(buffer);
+  const fill = reopened.getWorksheet("排班填写表");
+  const config = reopened.getWorksheet("模板配置");
+  const options = reopened.getWorksheet("可选项");
+  assert.ok(fill && reopened.getWorksheet("填写说明") && config && options);
+  assert.equal(config.state, "hidden");
+  assert.equal(options.state, "hidden");
+  assert.equal(fill.views[0].xSplit, 3);
+  assert.equal(fill.views[0].ySplit, 3);
+  assert.equal(fill.getRow(2).cellCount, 10);
+  assert.equal(fill.getCell("D4").dataValidation.type, "list");
+  assert.equal(fill.getCell("D5").dataValidation.type, "list");
+  assert.equal(fill.getCell("D7").value, "08:00-12:30");
+  assert.equal(fill.getCell("D9").value, "12:30-14:00");
+  assert.equal(fill.getCell("D10").value, "测试");
+  assert.equal(fill.getCell("D7").protection.locked, false);
+  assert.ok(config.rowCount > 20);
+  console.log("PASS creates a protected four-sheet horizontal schedule workbook");
+  console.log("All Excel domain tests passed.");
+})().catch((error) => { console.error("FAIL creates horizontal schedule workbook"); throw error; });
