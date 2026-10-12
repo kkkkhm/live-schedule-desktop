@@ -103,7 +103,7 @@
       "import-schedule-template": () => elements.scheduleExcelInput.click(),
       "export-editable-schedule-template": () => exportScheduleTemplate(true),
       "download-blank-schedule-template": () => exportScheduleTemplate(false),
-      "export-display-schedule-xlsx": exportScheduleXlsx,
+      "export-display-schedule-xlsx": exportDisplayScheduleXlsx,
       "import-performance-template": () => elements.performanceExcelInput.click(),
       "export-performance-template": () => exportPerformanceTemplate(false),
       "download-blank-performance-template": () => exportPerformanceTemplate(true),
@@ -183,6 +183,8 @@
   }
   function saveScheduleNow() {
     if (!selectedRoomKey) return showToast("请先选择直播间。", true);
+    const timeError = currentDates().map(Logic.toIsoDate).map(validateDayLiveTimes).find(Boolean);
+    if (timeError) return showToast(timeError, true);
     const schedule = getRoomSchedule(false); const timestamp = nowIso(); currentDates().forEach((date) => { const day = schedule?.days?.[Logic.toIsoDate(date)]; if (day && Logic.hasDayContent(day)) day.updatedAt = timestamp; });
     if (!saveState()) return; renderOverview(); const time = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }); elements.saveStatus.textContent = `排班已保存，历史记录已同步 ${time}`; showToast("排班已保存，历史记录已同步");
   }
@@ -293,15 +295,32 @@
     const employment = slot.groupType || "formal"; const pool = employment === "partTime" ? state.people : state.people.filter((p) => p.employmentType !== "partTime"); const hostRow = buildPersonSelect("主播", "hostId", slot.hostId, pool.filter((p) => p.canHost), slot.hostNameSnapshot); const coHostRow = buildPersonSelect("副播", "coHostId", slot.coHostId, pool.filter((p) => p.canCoHost), slot.coHostNameSnapshot); hostRow.select.disabled = !selectedRoomKey; coHostRow.select.disabled = !selectedRoomKey; hostRow.select.addEventListener("change", () => updateSlotPerson(dateKey, shift, "host", hostRow.select.value)); coHostRow.select.addEventListener("change", () => updateSlotPerson(dateKey, shift, "coHost", coHostRow.select.value));
     const timeRow = document.createElement("div"); timeRow.className = "time-row"; const start = document.createElement("input"); start.type = "time"; start.value = slot.startTime || ""; start.disabled = !selectedRoomKey; start.ariaLabel = `${shift.label}开始时间`; const sep = document.createElement("span"); sep.textContent = "—"; const end = document.createElement("input"); end.type = "time"; end.value = slot.endTime || ""; end.disabled = !selectedRoomKey; end.ariaLabel = `${shift.label}结束时间`; [start, end].forEach((input) => input.addEventListener("change", () => { const target = getSlot(dateKey, shift); target.startTime = start.value; target.endTime = end.value; persistAndRender(dateKey); })); timeRow.append(start, sep, end);
     const duration = document.createElement("div"); duration.className = "duration"; const dlabel = document.createElement("span"); dlabel.textContent = "直播时长"; const dvalue = document.createElement("strong"); dvalue.textContent = `${formatHours(Logic.durationHours(slot.startTime, slot.endTime))}h`; duration.append(dlabel, dvalue);
+    const attendance = document.createElement("div"); attendance.className = "duration attendance"; const attendanceLabel = document.createElement("span"); attendanceLabel.textContent = "出勤时间"; const attendanceValue = document.createElement("strong"); const attendanceWindow = Logic.attendanceWindowForTime(slot.startTime); const liveValidation = slot.startTime || slot.endTime ? Logic.validateLiveTimeRange(slot.startTime, slot.endTime) : null; attendanceValue.textContent = attendanceWindow ? `${attendanceWindow.start}–${attendanceWindow.end}` : "—"; if (liveValidation && !liveValidation.valid) { attendance.classList.add("invalid"); wrapper.classList.add("has-error"); } attendance.append(attendanceLabel, attendanceValue);
     const overtime = document.createElement("details"); overtime.className = "embedded-overtime"; if (slot.overtimeStartTime || slot.overtimeEndTime) overtime.open = true; const overtimeSummary = document.createElement("summary"); const overtimeHours = Logic.durationHours(slot.overtimeStartTime, slot.overtimeEndTime); overtimeSummary.textContent = overtimeHours ? `加班 ${formatHours(overtimeHours)}小时` : "添加加班时段"; const overtimeTimes = document.createElement("div"); overtimeTimes.className = "time-row"; const overtimeStart = document.createElement("input"); overtimeStart.type = "time"; overtimeStart.value = slot.overtimeStartTime || ""; const overtimeEnd = document.createElement("input"); overtimeEnd.type = "time"; overtimeEnd.value = slot.overtimeEndTime || ""; [overtimeStart, overtimeEnd].forEach((input) => input.addEventListener("change", () => { const target = getSlot(dateKey, shift); target.overtimeStartTime = overtimeStart.value; target.overtimeEndTime = overtimeEnd.value; persistAndRender(dateKey); })); overtimeTimes.append(overtimeStart, document.createTextNode("—"), overtimeEnd); const overtimeHint = document.createElement("small"); overtimeHint.className = overtimeHours === 1.5 ? "overtime-ok" : overtimeHours ? "overtime-warning" : ""; overtimeHint.textContent = overtimeHours ? (overtimeHours === 1.5 ? "加班1.5小时" : `当前加班${formatHours(overtimeHours)}小时`) : "仅在需要时填写"; overtime.append(overtimeSummary, overtimeTimes, overtimeHint);
-    const note = document.createElement("input"); note.className = "note-input"; note.type = "text"; note.maxLength = 80; note.placeholder = "备注（可选）"; note.value = slot.note || ""; note.disabled = !selectedRoomKey; note.addEventListener("change", () => { getSlot(dateKey, shift).note = note.value.trim(); persistAndRender(dateKey, false); }); wrapper.append(hostRow.element, coHostRow.element, timeRow, duration, overtime, note); return wrapper;
+    const note = document.createElement("input"); note.className = "note-input"; note.type = "text"; note.maxLength = 80; note.placeholder = "备注（可选）"; note.value = slot.note || ""; note.disabled = !selectedRoomKey; note.addEventListener("change", () => { getSlot(dateKey, shift).note = note.value.trim(); persistAndRender(dateKey, false); }); wrapper.append(hostRow.element, coHostRow.element, timeRow, duration, attendance, overtime, note); return wrapper;
   }
   function buildPersonSelect(labelText, field, selectedId, candidates, snapshot) { const row = document.createElement("div"); row.className = "field-row"; const label = document.createElement("label"); label.textContent = labelText; const select = document.createElement("select"); select.dataset.field = field; select.add(new Option("未安排", "")); if (selectedId && !candidates.some((p) => p.id === selectedId)) select.add(new Option(`${snapshot || "历史人员"}（历史）`, selectedId)); candidates.filter((p) => p.active || p.id === selectedId).sort((a, b) => a.name.localeCompare(b.name, "zh-CN")).forEach((p) => select.add(new Option(p.active ? p.name : `${p.name}（停用）`, p.id))); select.value = selectedId || ""; row.append(label, select); return { element: row, select }; }
   function buildLeavePicker(dateKey) {
     const day = selectedRoomKey ? getDay(dateKey) : { leavePeople: [], leaveNote: "" }; const wrapper = document.createElement("div"); const details = document.createElement("details"); details.className = "leave-picker"; details.open = openLeaveDateKey === dateKey; details.addEventListener("toggle", () => { if (details.open) openLeaveDateKey = dateKey; else if (openLeaveDateKey === dateKey) openLeaveDateKey = ""; }); const summary = document.createElement("summary"); const names = day.leavePeople.map((item) => state.people.find((p) => p.id === item.personId)?.name || item.personNameSnapshot).filter(Boolean); summary.textContent = names.length ? names.join("、") : "选择休假人员"; const options = document.createElement("div"); options.className = "leave-options"; const pool = state.people.filter((p) => p.active || day.leavePeople.some((item) => item.personId === p.id)); day.leavePeople.filter((item) => !pool.some((p) => p.id === item.personId)).forEach((item) => pool.push({ id: item.personId, name: item.personNameSnapshot || "历史人员", active: false })); pool.sort((a, b) => a.name.localeCompare(b.name, "zh-CN")).forEach((person) => { const label = document.createElement("label"); const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.disabled = !selectedRoomKey; checkbox.checked = day.leavePeople.some((item) => item.personId === person.id); checkbox.addEventListener("change", () => { if (checkbox.checked) day.leavePeople.push({ personId: person.id, personNameSnapshot: person.name }); else day.leavePeople = day.leavePeople.filter((item) => item.personId !== person.id); openLeaveDateKey = dateKey; persistAndRender(dateKey); }); label.append(checkbox, document.createTextNode(`${person.name}${person.active === false ? "（历史）" : ""}`)); options.appendChild(label); }); details.append(summary, options); const note = document.createElement("input"); note.className = "leave-note"; note.type = "text"; note.maxLength = 100; note.placeholder = "休假备注（可选）"; note.value = day.leaveNote || ""; note.disabled = !selectedRoomKey; note.addEventListener("change", () => { getDay(dateKey).leaveNote = note.value.trim(); persistAndRender(dateKey, false); }); wrapper.append(details, note); return wrapper;
   }
   function updateSlotPerson(dateKey, shift, role, personId) { if (!selectedRoomKey) return; const slot = getSlot(dateKey, shift); const person = state.people.find((item) => item.id === personId); if (role === "host") { slot.hostId = personId; slot.hostNameSnapshot = person ? person.name : personId ? slot.hostNameSnapshot : ""; } else { slot.coHostId = personId; slot.coHostNameSnapshot = person ? person.name : personId ? slot.coHostNameSnapshot : ""; } persistAndRender(dateKey); }
-  function persistAndRender(dateKey, rerender = true) { touchDay(dateKey); saveState(); if (rerender) renderSchedule(); renderStats(); }
+  function validateDayLiveTimes(dateKey) {
+    const day = getDay(dateKey, false);
+    if (!day) return "";
+    for (const shift of allShiftDefinitions()) {
+      const slot = day[shift.key];
+      if (!slot || (!slot.startTime && !slot.endTime)) continue;
+      const validation = Logic.validateLiveTimeRange(slot.startTime, slot.endTime);
+      if (!validation.valid) return `${dateKey} ${shift.label}的直播时间超出允许出勤区间`;
+      if (slot.overtimeStartTime || slot.overtimeEndTime) {
+        const overtimeEnd = Logic.timeToMinutes(slot.overtimeEndTime);
+        const attendanceEnd = Logic.timeToMinutes(validation.attendance.end);
+        if (Logic.timeToMinutes(slot.overtimeStartTime) === null || overtimeEnd === null || overtimeEnd <= Logic.timeToMinutes(slot.overtimeStartTime) || overtimeEnd > attendanceEnd) return `${dateKey} ${shift.label}的加班时间超出允许出勤区间`;
+      }
+    }
+    return "";
+  }
+  function persistAndRender(dateKey, rerender = true) { touchDay(dateKey); const error = validateDayLiveTimes(dateKey); if (error) showToast(error, true); else saveState(); if (rerender) renderSchedule(); renderStats(); }
 
   function renderOverview() {
     if (!elements.overviewTableBody) return; const filter = elements.historyRoomFilter.value; const records = Logic.historyRecords(state, new Date()).filter((item) => !filter || item.roomKey === filter); elements.overviewTableBody.replaceChildren();
@@ -432,6 +451,17 @@
       downloadFile(`${prefill ? "可编辑排班模板" : "空白排班模板"}-${selectedStart}-${selectedEnd}.xlsx`, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       showToast(prefill ? "可编辑排班模板已导出" : "空白排班模板已下载");
     } catch (error) { console.error(error); showToast(`排班模板生成失败：${error.message}`, true); }
+  }
+
+  async function exportDisplayScheduleXlsx() {
+    if (!Spreadsheet || !window.ExcelJS) return showToast("Excel 组件未加载，请重启应用后重试。", true);
+    try {
+      showToast("正在生成展示版排班表…");
+      const workbook = Spreadsheet.createDisplayScheduleWorkbook(window.ExcelJS, state, selectedStart, selectedEnd);
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadFile(`直播排班表-${selectedStart}-${selectedEnd}.xlsx`, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      showToast("展示版排班表已导出");
+    } catch (error) { console.error(error); showToast(`展示版排班表导出失败：${error.message}`, true); }
   }
 
   function stateWithoutPerformance() {

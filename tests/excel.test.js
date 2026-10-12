@@ -161,5 +161,18 @@ test("prefills a group day from its saved template group id", () => {
   assert.equal(performancePreview.nextState.schedules.r1.days["2026-10-01"].s1.performanceAmount, 12000);
   assert.equal(performancePreview.nextState.schedules.r1.days["2026-10-01"].s1.startTime, "08:00");
   console.log("PASS round-trips performance without changing schedule fields");
+
+  importState.schedules.r1.days["2026-10-01"].leavePeople = [{ personId: "h2", personNameSnapshot: "主播乙", status: "本休" }];
+  importState.schedules.r1.days["2026-10-01"].leaveNote = "临时调整";
+  const displayBook = Excel.createDisplayScheduleWorkbook(ExcelJS, importState, "2026-10-01", "2026-10-07");
+  const displayBuffer = await displayBook.xlsx.writeBuffer();
+  const reopenedDisplay = new ExcelJS.Workbook();
+  await reopenedDisplay.xlsx.load(displayBuffer);
+  const displaySheet = reopenedDisplay.getWorksheet("展示版排班表");
+  assert.deepEqual(displaySheet.getRow(3).values.slice(1), ["日期", "账号", "班次", "班组", "直播时间", "出勤时间", "直播时长"]);
+  assert.equal(displaySheet.getCell("F4").value, "08:00-16:00");
+  assert.equal(displaySheet.getCell("G4").value, "4.5h");
+  assert.ok(Array.from({ length: displaySheet.rowCount - 3 }, (_, index) => displaySheet.getCell(index + 4, 3).value).includes("休假"));
+  console.log("PASS creates the seven-column attendance-aware display workbook");
   console.log("All Excel domain tests passed.");
 })().catch((error) => { console.error("FAIL creates horizontal schedule workbook"); throw error; });

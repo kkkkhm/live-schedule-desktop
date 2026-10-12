@@ -507,5 +507,87 @@
     return { nextState, counts, errors, warnings: parsed?.warnings || [] };
   }
 
-  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createPerformanceWorkbook, createScheduleTemplateWorkbook, parsePerformanceWorkbook, parseScheduleTemplateWorkbook, preparePerformanceImport, prepareScheduleImport, stableStringify };
+  function createDisplayScheduleWorkbook(ExcelJS, state, startDate, endDate) {
+    if (!ExcelJS?.Workbook) throw new Error("ExcelJS 不可用");
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "直播排班工具";
+    const sheet = workbook.addWorksheet("展示版排班表", { views: [{ state: "frozen", ySplit: 3 }] });
+    sheet.mergeCells("A1:G1");
+    sheet.getCell("A1").value = `直播排班表（${startDate} 至 ${endDate}）`;
+    sheet.getCell("A1").font = { name: "微软雅黑", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+    sheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5597" } };
+    sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
+    sheet.mergeCells("A2:G2");
+    sheet.getCell("A2").value = "出勤时间由直播时间自动计算";
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+    sheet.getCell("A2").font = { name: "微软雅黑", color: { argb: "FF405069" } };
+    sheet.addRow(["日期", "账号", "班次", "班组", "直播时间", "出勤时间", "直播时长"]);
+    sheet.getRow(3).eachCell((cell) => { cell.font = { name: "微软雅黑", bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
+
+    const shiftMap = new Map((state.settings?.shiftDefinitions || []).map((item) => [item.key, item]));
+    const groupMap = new Map(activeConfiguration(state).groups.map((item) => [item.id, item]));
+    const peopleMap = new Map((state.people || []).map((item) => [item.id, item]));
+    const roomMap = new Map((state.rooms || []).map((item) => [item.id, item]));
+    const dateRows = new Map();
+    Object.entries(state.schedules || {}).forEach(([rootId, schedule]) => {
+      Object.entries(schedule?.days || {}).forEach(([dateKey, day]) => {
+        if (dateKey < startDate || dateKey > endDate) return;
+        if (!dateRows.has(dateKey)) dateRows.set(dateKey, []);
+        const rows = dateRows.get(dateKey);
+        Object.entries(day || {}).forEach(([shiftId, slot]) => {
+          if (!slot || typeof slot !== "object" || !slot.startTime || !slot.endTime || (!slot.hostId && !slot.coHostId)) return;
+          const room = roomMap.get(slot.roomId || rootId);
+          const group = groupMap.get(slot.templateGroupId);
+          const host = peopleMap.get(slot.hostId)?.name || slot.hostNameSnapshot || "";
+          const coHost = peopleMap.get(slot.coHostId)?.name || slot.coHostNameSnapshot || "";
+          const attendance = Logic.attendanceWindowForTime(slot.startTime);
+          rows.push({ type: "schedule", account: room?.account || slot.roomAccountSnapshot || "", shift: shiftMap.get(shiftId)?.label || slot.shiftLabelSnapshot || shiftId, group: group?.name || [host, coHost].filter(Boolean).join(" & "), liveTime: `${slot.startTime}-${slot.endTime}`, attendance: attendance ? `${attendance.start}-${attendance.end}` : "", duration: `${Logic.durationHours(slot.startTime, slot.endTime)}h`, order: Number(shiftMap.get(shiftId)?.order) || 999 });
+        });
+        const leaveNames = (day.leavePeople || []).map((item) => peopleMap.get(item.personId)?.name || item.personNameSnapshot || "").filter(Boolean);
+        if (leaveNames.length) rows.push({ type: "leave", account: "", shift: "休假", group: leaveNames.join("、"), liveTime: "", attendance: "", duration: "", order: 1000 });
+        if (day.leaveNote) rows.push({ type: "note", note: day.leaveNote, order: 1001 });
+      });
+    });
+
+    [...dateRows.keys()].sort().forEach((dateKey) => {
+      const descriptors = dateRows.get(dateKey).sort((a, b) => a.order - b.order);
+      const firstRow = sheet.rowCount + 1;
+      descriptors.forEach((item) => {
+        if (item.type === "note") {
+          const row = sheet.addRow([dateKey, item.note, "", "", "", "", ""]);
+          sheet.mergeCells(row.number, 2, row.number, 7);
+          row.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE4DFEC" } }; cell.font = { name: "微软雅黑", bold: true, color: { argb: "FF5F497A" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
+        } else {
+          const row = sheet.addRow([dateKey, item.account, item.shift, item.group, item.liveTime, item.attendance, item.duration]);
+          if (item.type === "leave") row.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE699" } }; cell.font = { name: "微软雅黑", bold: true, color: { argb: "FF7F6000" } }; });
+        }
+      });
+      const lastRow = sheet.rowCount;
+      if (lastRow > firstRow) sheet.mergeCells(firstRow, 1, lastRow, 1);
+      sheet.getCell(firstRow, 1).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      let accountStart = firstRow;
+      for (let row = firstRow + 1; row <= lastRow + 1; row += 1) {
+        const previous = cellText(sheet.getCell(row - 1, 2));
+        const current = row <= lastRow ? cellText(sheet.getCell(row, 2)) : null;
+        if (current !== previous) {
+          if (previous && row - 1 > accountStart) sheet.mergeCells(accountStart, 2, row - 1, 2);
+          accountStart = row;
+        }
+      }
+    });
+
+    [14, 18, 20, 24, 18, 18, 14].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+    for (let row = 3; row <= sheet.rowCount; row += 1) for (let column = 1; column <= 7; column += 1) {
+      const cell = sheet.getCell(row, column);
+      cell.border = { top: { style: "thin", color: { argb: "FFB4C6E7" } }, left: { style: "thin", color: { argb: "FFB4C6E7" } }, bottom: { style: "thin", color: { argb: "FFB4C6E7" } }, right: { style: "thin", color: { argb: "FFB4C6E7" } } };
+      cell.alignment = { vertical: "middle", wrapText: true, ...(cell.alignment || {}) };
+      if (!cell.font) cell.font = { name: "微软雅黑", size: 10 };
+    }
+    sheet.pageSetup = { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+    sheet.pageSetup.printArea = `A1:G${sheet.rowCount}`;
+    sheet.headerFooter.oddFooter = "第 &P / &N 页";
+    return workbook;
+  }
+
+  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createDisplayScheduleWorkbook, createPerformanceWorkbook, createScheduleTemplateWorkbook, parsePerformanceWorkbook, parseScheduleTemplateWorkbook, preparePerformanceImport, prepareScheduleImport, stableStringify };
 });

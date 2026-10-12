@@ -249,6 +249,7 @@ main { padding: 24px 36px 48px; }
 .performance-status { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .performance-status.saved { color: var(--success); }
 .performance-status.warning { color: #9a6208; }
+.attendance.invalid { color: var(--danger); }
 .performance-empty { display: flex; height: 100%; align-items: center; justify-content: center; color: #9aa5b5; font-size: 12px; }
 .ranking-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 20px; }
 .ranking-card { padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); }
