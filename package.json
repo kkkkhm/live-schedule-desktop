@@ -8,7 +8,7 @@
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/logic.test.js && node tests/update.test.js && node tests/menu.test.js && node tests/desktop.test.js",
+    "test": "node tests/logic.test.js && node tests/excel.test.js && node tests/update.test.js && node tests/menu.test.js && node tests/desktop.test.js",
     "pack:win": "electron-builder --win portable --x64",
     "pack:mac": "node desktop/package-mac.js"
   },
@@ -28,6 +28,7 @@
       "styles.css",
       "app.js",
       "logic.js",
+      "excel.js",
       "vendor/**/*",
       "desktop/**/*",
       "README.md",
