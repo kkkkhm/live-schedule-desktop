@@ -66,6 +66,26 @@
     return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   }
 
+  function attendanceWindowForTime(startTime) {
+    const start = timeToMinutes(startTime);
+    if (start === null) return null;
+    if (start < 11 * 60) return { start: "08:00", end: "16:00" };
+    if (start < 16 * 60) return { start: "11:00", end: "19:00" };
+    return { start: "16:00", end: "23:30" };
+  }
+
+  function validateLiveTimeRange(startTime, endTime) {
+    const start = timeToMinutes(startTime);
+    const end = timeToMinutes(endTime);
+    const attendance = attendanceWindowForTime(startTime);
+    if (start === null || end === null || !attendance) return { valid: false, code: "missing-time", attendance };
+    if (end <= start) return { valid: false, code: "invalid-order", attendance };
+    const attendanceStart = timeToMinutes(attendance.start);
+    const attendanceEnd = timeToMinutes(attendance.end);
+    if (start < attendanceStart || end > attendanceEnd) return { valid: false, code: "outside-attendance", attendance };
+    return { valid: true, code: "", attendance };
+  }
+
   function eligiblePeopleForRole(people, role, selectedIds = []) {
     const selected = new Set(selectedIds || []);
     const capability = role === "host" ? "canHost" : "canCoHost";
@@ -656,6 +676,8 @@
     timeToMinutes,
     durationHours,
     addHoursToTime,
+    attendanceWindowForTime,
+    validateLiveTimeRange,
     eligiblePeopleForRole,
     parsePerformanceAmount,
     performanceRangeBounds,

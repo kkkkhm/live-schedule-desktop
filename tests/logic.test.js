@@ -33,6 +33,26 @@ test("adds fractional hours across midnight", () => {
   assert.equal(Logic.addHoursToTime("23:30", 1.5), "01:00");
 });
 
+test("derives one of the three attendance windows from live start time", () => {
+  assert.deepEqual(Logic.attendanceWindowForTime("08:00"), { start: "08:00", end: "16:00" });
+  assert.deepEqual(Logic.attendanceWindowForTime("10:59"), { start: "08:00", end: "16:00" });
+  assert.deepEqual(Logic.attendanceWindowForTime("11:00"), { start: "11:00", end: "19:00" });
+  assert.deepEqual(Logic.attendanceWindowForTime("15:59"), { start: "11:00", end: "19:00" });
+  assert.deepEqual(Logic.attendanceWindowForTime("16:00"), { start: "16:00", end: "23:30" });
+  assert.deepEqual(Logic.attendanceWindowForTime("23:00"), { start: "16:00", end: "23:30" });
+  assert.equal(Logic.attendanceWindowForTime("24:00"), null);
+});
+
+test("validates live time entirely inside its derived attendance window", () => {
+  assert.deepEqual(Logic.validateLiveTimeRange("08:00", "12:30"), { valid: true, code: "", attendance: { start: "08:00", end: "16:00" } });
+  assert.equal(Logic.validateLiveTimeRange("07:59", "12:30").code, "outside-attendance");
+  assert.equal(Logic.validateLiveTimeRange("10:30", "16:01").code, "outside-attendance");
+  assert.equal(Logic.validateLiveTimeRange("13:00", "19:01").code, "outside-attendance");
+  assert.equal(Logic.validateLiveTimeRange("18:30", "23:31").code, "outside-attendance");
+  assert.equal(Logic.validateLiveTimeRange("23:00", "01:00").code, "invalid-order");
+  assert.equal(Logic.validateLiveTimeRange("", "12:30").code, "missing-time");
+});
+
 test("lets the fixed part-time group select all active role-capable people regardless of employment type", () => {
   const people = [
     { id: "formal-host", employmentType: "formal", canHost: true, canCoHost: false, active: true },
