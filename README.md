@@ -11,7 +11,7 @@
 - 桌面版左上角提供“文件 / 视图 / 帮助”原生菜单，可导入导出排班、业绩与 JSON 备份，缩放页面，检查更新和打开在线帮助。
 - 自动构建：推送 `desktop-v*` 标签或手动运行 GitHub Actions 中的 `Build desktop apps`。
 
-开发构建环境先执行 `npm install`。Windows 产物位于 `desktop-dist/LiveSchedule-Windows-1.0.7-x64.exe`。macOS 首次打开未签名应用时，如系统阻止运行，请进入“系统设置 → 隐私与安全性”，在安全提示处选择“仍要打开”。
+开发构建环境先执行 `npm install`。Windows 产物位于 `desktop-dist/LiveSchedule-Windows-1.0.8-x64.exe`。macOS 首次打开未签名应用时，如系统阻止运行，请进入“系统设置 → 隐私与安全性”，在安全提示处选择“仍要打开”。
 
 桌面版不会在启动时自动联网。在“帮助 → 检查更新”中可手动检查公开的 GitHub Releases；发现新版本后，程序会用系统浏览器打开与当前 Windows、Intel Mac 或 Apple Silicon Mac 匹配的下载文件，不会自动覆盖本地版本。
 
