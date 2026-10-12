@@ -89,6 +89,7 @@ test("prefills a group day from its saved template group id", () => {
   assert.equal(fill.getCell("D9").value, "12:30-14:00");
   assert.equal(fill.getCell("D10").value, "测试");
   assert.equal(fill.getCell("D7").protection.locked, false);
+  assert.equal(options.getCell(4, 1).value, "本休");
   assert.ok(config.rowCount > 20);
   console.log("PASS creates a protected four-sheet horizontal schedule workbook");
 

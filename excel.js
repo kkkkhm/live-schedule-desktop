@@ -133,8 +133,9 @@
 
     options.addRow(["班次", "人员状态"]);
     model.shifts.forEach((shift, index) => { options.getCell(index + 2, 1).value = shift.name; });
+    ["本休", "调休", "未排班"].forEach((status, index) => { options.getCell(model.shifts.length + index + 2, 1).value = status; });
     ["正常", "本休", "调休"].forEach((status, index) => { options.getCell(index + 2, 2).value = status; });
-    const shiftRange = `'可选项'!$A$2:$A$${Math.max(2, model.shifts.length + 1)}`;
+    const shiftRange = `'可选项'!$A$2:$A$${model.shifts.length + 4}`;
     const statusRange = "'可选项'!$B$2:$B$4";
     const mappingRows = [];
     let rowIndex = 3;
