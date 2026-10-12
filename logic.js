@@ -86,6 +86,53 @@
     return { valid: true, code: "", attendance };
   }
 
+  function liveHoursBreakdown(slot, targets = {}) {
+    const totalBaseHours = durationHours(slot?.startTime, slot?.endTime);
+    const defaultNormalHours = Math.max(0, Number(targets?.defaultNormalHours) || 4.5);
+    const normalHours = Math.min(totalBaseHours, defaultNormalHours);
+    const embeddedOvertimeHours = durationHours(slot?.overtimeStartTime, slot?.overtimeEndTime);
+    const overtimeHours = Math.max(0, totalBaseHours - normalHours) + embeddedOvertimeHours;
+    return { normalHours, overtimeHours, totalHours: normalHours + overtimeHours };
+  }
+
+  function overtimePlacement(slot) {
+    if (!slot?.overtimeStartTime || !slot?.overtimeEndTime) return "";
+    if (slot.overtimeEndTime === slot.startTime) return "before";
+    if (slot.overtimeStartTime === slot.endTime) return "after";
+    return "detached";
+  }
+
+  function combinedLiveRange(slot) {
+    const placement = overtimePlacement(slot);
+    return {
+      startTime: placement === "before" ? slot.overtimeStartTime : (slot?.startTime || ""),
+      endTime: placement === "after" ? slot.overtimeEndTime : (slot?.endTime || ""),
+      placement
+    };
+  }
+
+  function planAttachedOvertime(startTime, endTime, requestedHours) {
+    const start = timeToMinutes(startTime);
+    const end = timeToMinutes(endTime);
+    const attendance = attendanceWindowForTime(startTime);
+    if (start === null || end === null || end <= start || !attendance || requestedHours <= 0) return { placement: "", hours: 0, startTime: "", endTime: "" };
+    const afterCapacity = Math.max(0, (timeToMinutes(attendance.end) - end) / 60);
+    const beforeCapacity = Math.max(0, (start - timeToMinutes(attendance.start)) / 60);
+    let placement = "after";
+    let hours = Math.min(requestedHours, afterCapacity);
+    if (hours < requestedHours && beforeCapacity >= requestedHours) {
+      placement = "before";
+      hours = requestedHours;
+    } else if (hours < requestedHours && beforeCapacity > afterCapacity) {
+      placement = "before";
+      hours = Math.min(requestedHours, beforeCapacity);
+    }
+    if (hours <= 0) return { placement: "", hours: 0, startTime: "", endTime: "" };
+    return placement === "after"
+      ? { placement, hours, startTime: endTime, endTime: addHoursToTime(endTime, hours) }
+      : { placement, hours, startTime: addHoursToTime(startTime, -hours), endTime: startTime };
+  }
+
   function eligiblePeopleForRole(people, role, selectedIds = []) {
     const selected = new Set(selectedIds || []);
     const capability = role === "host" ? "canHost" : "canCoHost";
@@ -219,7 +266,7 @@
     return entries;
   }
 
-  function calculateStatistics(week, people) {
+  function calculateStatistics(week, people, targets = {}) {
     const rows = new Map();
     people.forEach((person) => rows.set(person.id, {
       id: person.id,
@@ -230,7 +277,7 @@
     }));
 
     const entries = collectWeekEntries(week, people);
-    entries.forEach(({ slot, hours, isOvertime }) => {
+    entries.forEach(({ slot, hours, isOvertime, entryKind }) => {
       if (!hours) return;
       const assignedPeople = [...new Set([slot.hostId, slot.coHostId].filter(Boolean))];
       assignedPeople.forEach((personId) => {
@@ -238,7 +285,11 @@
         if (!rows.has(personId)) rows.set(personId, { id: personId, name: snapshot || "未知人员", liveHours: 0, overtimeHours: 0, totalHours: 0 });
         const row = rows.get(personId);
         if (isOvertime) row.overtimeHours += hours;
-        else row.liveHours += hours;
+        else {
+          const breakdown = liveHoursBreakdown({ startTime: slot.startTime, endTime: slot.endTime }, targets);
+          row.liveHours += breakdown.normalHours;
+          row.overtimeHours += breakdown.overtimeHours;
+        }
         row.totalHours += hours;
       });
     });
@@ -371,9 +422,10 @@
     const activeGroups = (groups || []).filter((group) => group && group.active !== false && group.hostId && group.coHostId && !leave.has(group.hostId) && !leave.has(group.coHostId)).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
     const occupied = new Set();
     const assignments = [];
+    const priorityShiftKeys = new Set(shifts.slice(0, Math.min(activeGroups.length, shifts.length)).map((shift) => shift.key));
     activeGroups.forEach((group) => {
-      const preferred = shifts.find((shift) => shift.key === group.defaultShiftId && !occupied.has(shift.key));
-      const shift = preferred || shifts.find((item) => !occupied.has(item.key));
+      const preferred = shifts.find((shift) => shift.key === group.defaultShiftId && priorityShiftKeys.has(shift.key) && !occupied.has(shift.key));
+      const shift = preferred || shifts.find((item) => priorityShiftKeys.has(item.key) && !occupied.has(item.key)) || shifts.find((item) => !occupied.has(item.key));
       if (!shift) return;
       occupied.add(shift.key);
       assignments.push({ ...group, groupType: "formal", shiftKey: shift.key });
@@ -389,23 +441,46 @@
       }
     }
     const byKey = new Map(shifts.map((shift) => [shift.key, shift]));
-    let baseHours = assignments.reduce((sum, group) => { const shift = byKey.get(group.shiftKey); return sum + durationHours(shift?.startTime, shift?.endTime); }, 0);
+    const defaultNormalHours = Math.max(0, Number(targets?.defaultNormalHours) || 4.5);
+    const maximumOvertimeHours = Math.max(0, Number(targets?.maximumOvertimeHours) || Number(targets?.defaultOvertimeHours) || 1.5);
+    const baseHours = assignments.reduce((sum, group) => { const shift = byKey.get(group.shiftKey); return sum + Math.min(durationHours(shift?.startTime, shift?.endTime), defaultNormalHours); }, 0);
+    const baseExcessHours = assignments.reduce((sum, group) => { const shift = byKey.get(group.shiftKey); return sum + Math.max(0, durationHours(shift?.startTime, shift?.endTime) - defaultNormalHours); }, 0);
     const minimumTotalHours = Math.max(0, Number(targets?.minimumTotalHours) || 0);
     const defaultOvertimeHours = Math.max(0, Number(targets?.defaultOvertimeHours) || 0);
-    let remainingHours = Math.max(0, minimumTotalHours - baseHours);
+    let remainingHours = Math.max(0, minimumTotalHours - baseHours - baseExcessHours);
     const overtimeCandidates = assignments.filter((group) => byKey.get(group.shiftKey)?.allowOvertime).sort((a, b) => {
       const first = byKey.get(a.shiftKey); const second = byKey.get(b.shiftKey);
       return (first.overtimePriority || 999) - (second.overtimePriority || 999) || (first.order || 0) - (second.order || 0);
     });
-    overtimeCandidates.forEach((group) => {
-      if (remainingHours <= 0 || defaultOvertimeHours <= 0) return;
-      const shift = byKey.get(group.shiftKey); const overtimeHours = Math.min(defaultOvertimeHours, remainingHours);
-      group.overtimeStartTime = shift.endTime;
-      group.overtimeEndTime = addHoursToTime(shift.endTime, overtimeHours);
-      group.overtimeHours = overtimeHours;
-      remainingHours = Math.max(0, remainingHours - overtimeHours);
+    const candidateState = overtimeCandidates.map((group) => {
+      const shift = byKey.get(group.shiftKey);
+      const excessHours = Math.max(0, durationHours(shift.startTime, shift.endTime) - defaultNormalHours);
+      const availableByAttendance = planAttachedOvertime(shift.startTime, shift.endTime, 24).hours;
+      return { group, shift, allocated: 0, capacity: Math.max(0, Math.min(maximumOvertimeHours - excessHours, availableByAttendance)) };
     });
-    const overtimeHours = assignments.reduce((sum, group) => sum + (group.overtimeHours || 0), 0);
+    if (defaultOvertimeHours > 0) {
+      let changed = true;
+      while (remainingHours > 0.0001 && changed) {
+        changed = false;
+        candidateState.forEach((candidate) => {
+          const available = candidate.capacity - candidate.allocated;
+          if (remainingHours <= 0.0001 || available <= 0.0001) return;
+          const added = Math.min(defaultOvertimeHours, remainingHours, available);
+          candidate.allocated += added;
+          remainingHours = Math.max(0, remainingHours - added);
+          changed = true;
+        });
+      }
+    }
+    candidateState.forEach(({ group, shift, allocated }) => {
+      const overtime = planAttachedOvertime(shift.startTime, shift.endTime, allocated);
+      if (!overtime.hours) return;
+      group.overtimePlacement = overtime.placement;
+      group.overtimeStartTime = overtime.startTime;
+      group.overtimeEndTime = overtime.endTime;
+      group.overtimeHours = overtime.hours;
+    });
+    const overtimeHours = baseExcessHours + assignments.reduce((sum, group) => sum + (group.overtimeHours || 0), 0);
     const missingShiftCount = Math.max(0, minimumShiftCount - assignments.length);
     return {
       assignments,
@@ -433,8 +508,9 @@
     });
     const leaveIds = new Set((record.leavePeople || []).map((item) => item.personId));
     const leaveConflictKeys = complete.filter((shift) => leaveIds.has(record[shift.key].hostId) || leaveIds.has(record[shift.key].coHostId)).map((shift) => shift.key);
-    const baseHours = complete.reduce((sum, shift) => sum + durationHours(record[shift.key].startTime, record[shift.key].endTime), 0);
-    const overtimeHours = complete.reduce((sum, shift) => sum + durationHours(record[shift.key].overtimeStartTime, record[shift.key].overtimeEndTime), 0);
+    const breakdowns = complete.map((shift) => liveHoursBreakdown(record[shift.key], targets));
+    const baseHours = breakdowns.reduce((sum, breakdown) => sum + breakdown.normalHours, 0);
+    const overtimeHours = breakdowns.reduce((sum, breakdown) => sum + breakdown.overtimeHours, 0);
     const minimumShiftCount = Math.max(1, Number(targets?.minimumShiftCount) || 1);
     const minimumTotalHours = Math.max(0, Number(targets?.minimumTotalHours) || 0);
     return {
@@ -567,7 +643,7 @@
       const source = stored[primaryRoomId] || Object.values(stored)[0] || {};
       output.settings.partTimeGroup = { id: source.id || "part-time-group", name: "固定兼职班组", hostId: source.hostId || "", coHostId: source.coHostId || "" };
     }
-    output.settings.scheduleTargets = { minimumShiftCount: 4, minimumTotalHours: 18, defaultOvertimeHours: 1.5, ...(output.settings.scheduleTargets || {}) };
+    output.settings.scheduleTargets = { minimumShiftCount: 4, minimumTotalHours: 18, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 1.5, ...(output.settings.scheduleTargets || {}) };
     output.version = 5;
     return output;
   }
@@ -678,6 +754,10 @@
     addHoursToTime,
     attendanceWindowForTime,
     validateLiveTimeRange,
+    liveHoursBreakdown,
+    overtimePlacement,
+    combinedLiveRange,
+    planAttachedOvertime,
     eligiblePeopleForRole,
     parsePerformanceAmount,
     performanceRangeBounds,

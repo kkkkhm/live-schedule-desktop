@@ -115,15 +115,15 @@ test("uses a date-column performance matrix with ranking-only range controls", (
   assert.match(styles, /\.performance-table \.performance-shift-label \{ position: sticky;/);
 });
 
-test("calculates live hours without distinguishing roles", () => {
+test("classifies live time above the normal limit as overtime without distinguishing roles", () => {
   const people = [{ id: "a", name: "甲" }, { id: "b", name: "乙" }];
   const week = { monday: { morning: { hostId: "a", coHostId: "b", startTime: "08:00", endTime: "13:00" } } };
   const result = Logic.calculateStatistics(week, people);
   assert.equal(result.sessionCount, 1);
   assert.equal(result.totalPersonHours, 10);
   const byName = Object.fromEntries(result.rows.map((row) => [row.name, row]));
-  assert.deepEqual([byName["甲"].liveHours, byName["甲"].overtimeHours, byName["甲"].totalHours], [5, 0, 5]);
-  assert.deepEqual([byName["乙"].liveHours, byName["乙"].overtimeHours, byName["乙"].totalHours], [5, 0, 5]);
+  assert.deepEqual([byName["甲"].liveHours, byName["甲"].overtimeHours, byName["甲"].totalHours], [4.5, 0.5, 5]);
+  assert.deepEqual([byName["乙"].liveHours, byName["乙"].overtimeHours, byName["乙"].totalHours], [4.5, 0.5, 5]);
 });
 
 test("separates overtime and counts the same person only once per slot", () => {
@@ -133,7 +133,7 @@ test("separates overtime and counts the same person only once per slot", () => {
     overtimeMorning: { hostId: "a", coHostId: "", startTime: "13:00", endTime: "15:00" }
   } };
   const result = Logic.calculateStatistics(week, people);
-  assert.deepEqual([result.rows[0].liveHours, result.rows[0].overtimeHours, result.rows[0].totalHours], [5, 2, 7]);
+  assert.deepEqual([result.rows[0].liveHours, result.rows[0].overtimeHours, result.rows[0].totalHours], [4.5, 2.5, 7]);
   assert.equal(result.totalPersonHours, 7);
 });
 
@@ -196,6 +196,43 @@ test("plans configurable shifts, fills one part-time shift, then adds overtime b
   assert.equal(plan.needsManual, false);
   const priorityOvertime = plan.assignments.find((item) => item.shiftKey === "b");
   assert.deepEqual([priorityOvertime.overtimeStartTime, priorityOvertime.overtimeEndTime, priorityOvertime.overtimeHours], ["17:00", "18:15", 1.25]);
+});
+
+test("fills the highest-priority shifts when only three groups are available", () => {
+  const shifts = [
+    { key: "a", startTime: "08:00", endTime: "12:30", active: true, order: 1 },
+    { key: "b", startTime: "13:00", endTime: "17:30", active: true, order: 2 },
+    { key: "c", startTime: "19:00", endTime: "23:30", active: true, order: 3 },
+    { key: "d", startTime: "13:30", endTime: "18:00", active: true, order: 4 }
+  ];
+  const groups = [
+    { id: "g2", hostId: "h2", coHostId: "c2", defaultShiftId: "b", active: true, order: 2 },
+    { id: "g3", hostId: "h3", coHostId: "c3", defaultShiftId: "c", active: true, order: 3 },
+    { id: "g4", hostId: "h4", coHostId: "c4", defaultShiftId: "d", active: true, order: 4 }
+  ];
+  const plan = Logic.planDayFromConfiguration(groups, shifts, { minimumShiftCount: 4, minimumTotalHours: 13.5, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 1.5 }, [], null);
+  assert.deepEqual(plan.assignments.map((item) => item.shiftKey).sort(), ["a", "b", "c"]);
+  assert.equal(plan.missingShiftCount, 1);
+});
+
+test("prefers post-overtime and falls back to pre-overtime at attendance boundary", () => {
+  const group = [{ id: "g1", hostId: "h1", coHostId: "c1", defaultShiftId: "a", active: true }];
+  const targets = { minimumShiftCount: 1, minimumTotalHours: 5.5, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 2 };
+  const post = Logic.planDayFromConfiguration(group, [{ key: "a", startTime: "13:00", endTime: "17:30", active: true, allowOvertime: true }], targets, [], null);
+  assert.deepEqual([post.assignments[0].overtimePlacement, post.assignments[0].overtimeStartTime, post.assignments[0].overtimeEndTime], ["after", "17:30", "18:30"]);
+  const pre = Logic.planDayFromConfiguration(group, [{ key: "a", startTime: "19:00", endTime: "23:30", active: true, allowOvertime: true }], targets, [], null);
+  assert.deepEqual([pre.assignments[0].overtimePlacement, pre.assignments[0].overtimeStartTime, pre.assignments[0].overtimeEndTime], ["before", "18:00", "19:00"]);
+  assert.deepEqual(Logic.combinedLiveRange({ startTime: "19:00", endTime: "23:30", overtimeStartTime: "18:00", overtimeEndTime: "19:00" }), { startTime: "18:00", endTime: "23:30", placement: "before" });
+});
+
+test("caps each shift overtime and classifies excess live time as overtime", () => {
+  const shifts = [{ key: "a", startTime: "13:00", endTime: "17:30", active: true, allowOvertime: true }];
+  const groups = [{ id: "g1", hostId: "h1", coHostId: "c1", defaultShiftId: "a", active: true }];
+  const targets = { minimumShiftCount: 1, minimumTotalHours: 8, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 1.5 };
+  const plan = Logic.planDayFromConfiguration(groups, shifts, targets, [], null);
+  assert.deepEqual([plan.baseHours, plan.overtimeHours, plan.totalHours, plan.missingHours], [4.5, 1.5, 6, 2]);
+  const evaluated = Logic.evaluateDayTargets({ a: { hostId: "h1", coHostId: "c1", startTime: "13:00", endTime: "18:00" } }, shifts, targets);
+  assert.deepEqual([evaluated.baseHours, evaluated.overtimeHours, evaluated.totalHours], [4.5, 0.5, 5]);
 });
 
 test("reports manual shortages when shifts or overtime capacity cannot reach targets", () => {
@@ -265,7 +302,7 @@ test("migrates V1 data to unassigned V5 without losing schedules", () => {
   assert.equal(result.schedules.unassigned.days["2026-10-05"].morning.hostId, "a");
   assert.equal(result.schedules.unassigned.roomNameSnapshot, "未指定直播间");
   assert.equal(result.settings.shiftDefinitions.length, 4);
-  assert.deepEqual(result.settings.scheduleTargets, { minimumShiftCount: 4, minimumTotalHours: 18, defaultOvertimeHours: 1.5 });
+  assert.deepEqual(result.settings.scheduleTargets, { minimumShiftCount: 4, minimumTotalHours: 18, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 1.5 });
 });
 
 test("migrates a single-room V2 week into that room", () => {

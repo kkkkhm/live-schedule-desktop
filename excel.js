@@ -551,12 +551,10 @@
           const room = roomMap.get(slot.roomId || rootId);
           const host = peopleMap.get(slot.hostId)?.name || slot.hostNameSnapshot || "";
           const coHost = peopleMap.get(slot.coHostId)?.name || slot.coHostNameSnapshot || "";
-          const attendance = Logic.attendanceWindowForTime(slot.startTime);
-          const hasOvertime = Boolean(slot.overtimeStartTime && slot.overtimeEndTime);
-          const overtimeHours = hasOvertime ? Logic.durationHours(slot.overtimeStartTime, slot.overtimeEndTime) : 0;
-          const totalHours = Math.round((Logic.durationHours(slot.startTime, slot.endTime) + overtimeHours) * 100) / 100;
-          const overtimeText = hasOvertime ? `；加班${slot.overtimeStartTime}-${slot.overtimeEndTime}` : "";
-          rows.push({ type: "schedule", account: room?.account || slot.roomAccountSnapshot || "", shift: shiftMap.get(shiftId)?.label || slot.shiftLabelSnapshot || shiftId, group: [host, coHost].filter(Boolean).join("&"), liveTime: `${slot.startTime}-${slot.endTime}${overtimeText}`, attendance: attendance ? `${attendance.start}-${attendance.end}` : "", duration: `${totalHours}h`, order: Number(shiftMap.get(shiftId)?.order) || 999 });
+          const combined = Logic.combinedLiveRange(slot);
+          const attendance = Logic.attendanceWindowForTime(combined.startTime);
+          const breakdown = Logic.liveHoursBreakdown(slot, state.settings?.scheduleTargets || {});
+          rows.push({ type: "schedule", account: room?.account || slot.roomAccountSnapshot || "", shift: shiftMap.get(shiftId)?.label || slot.shiftLabelSnapshot || shiftId, group: [host, coHost].filter(Boolean).join("&"), liveTime: `${combined.startTime}-${combined.endTime}`, attendance: attendance ? `${attendance.start}-${attendance.end}` : "", duration: `${Math.round(breakdown.totalHours * 100) / 100}h`, order: Number(shiftMap.get(shiftId)?.order) || 999 });
         });
         const leaveNames = (day.leavePeople || []).map((item) => peopleMap.get(item.personId)?.name || item.personNameSnapshot || "").filter(Boolean);
         if (leaveNames.length) rows.push({ type: "leave", account: "", shift: "休假", group: leaveNames.join("、"), liveTime: "", attendance: "", duration: "", order: 1000 });

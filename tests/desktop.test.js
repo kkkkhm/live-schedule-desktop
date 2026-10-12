@@ -39,6 +39,8 @@ assert.doesNotMatch(html, /id="exportScheduleXlsxBtn"/);
 assert.match(html, /id="scheduleExcelInput"/);
 assert.match(html, /id="performanceExcelInput"/);
 assert.match(html, /id="excelImportDialog"/);
+assert.match(html, /id="defaultNormalHoursInput"/);
+assert.match(html, /id="maximumOvertimeHoursInput"/);
 assert.ok(html.indexOf('src="logic.js"') < html.indexOf('src="excel.js"'));
 assert.ok(html.indexOf('src="excel.js"') < html.indexOf('src="app.js"'));
 assert.match(workflow, /gh release create/);

@@ -173,7 +173,9 @@
         <form id="scheduleTargetsForm" class="settings-form targets-form">
           <label><span>最小班次数</span><input id="minimumShiftCountInput" type="number" min="1" max="12" step="1" required></label>
           <label><span>最小直播总时长（小时）</span><input id="minimumTotalHoursInput" type="number" min="0" max="288" step="0.5" required></label>
+          <label><span>默认正常直播时长（小时）</span><input id="defaultNormalHoursInput" type="number" min="0.5" max="12" step="0.5" required></label>
           <label><span>默认自动加班时长（小时）</span><input id="defaultOvertimeHoursInput" type="number" min="0.5" max="12" step="0.5" required></label>
+          <label><span>每班最大允许加班（小时）</span><input id="maximumOvertimeHoursInput" type="number" min="0.5" max="12" step="0.5" required></label>
           <button class="button primary" type="submit">保存最低目标</button>
           <p id="scheduleTargetsError" class="form-error" role="alert"></p>
         </form>

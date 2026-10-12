@@ -193,6 +193,7 @@ main { padding: 24px 36px 48px; }
 .embedded-overtime small { display: block; font-size: 10px; color: var(--muted); }
 .embedded-overtime .overtime-ok { color: var(--success); }
 .embedded-overtime .overtime-warning { color: var(--danger); }
+.overtime-inline { margin-top: 5px; padding: 4px 7px; border-radius: 5px; background: #e7f5ef; color: var(--success); font-size: 11px; font-weight: 700; }
 .guidance-cell { padding: 8px; background: #fafbfd; }
 .day-guidance { padding: 7px 8px; border-radius: 6px; background: #eef0f4; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .day-guidance.ok { background: #e7f5ef; color: var(--success); }
