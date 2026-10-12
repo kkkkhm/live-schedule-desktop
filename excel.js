@@ -414,5 +414,98 @@
     return { nextState, counts, errors, warnings, changes };
   }
 
-  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createScheduleTemplateWorkbook, parseScheduleTemplateWorkbook, prepareScheduleImport, stableStringify };
+  function performanceRecords(state, startDate, endDate) {
+    const shifts = new Map((state.settings?.shiftDefinitions || []).map((item) => [item.key, item]));
+    const people = new Map((state.people || []).map((item) => [item.id, item]));
+    const rooms = new Map((state.rooms || []).map((item) => [item.id, item]));
+    const records = [];
+    Object.entries(state.schedules || {}).forEach(([rootId, schedule]) => {
+      Object.entries(schedule?.days || {}).forEach(([dateKey, day]) => {
+        if ((startDate && dateKey < startDate) || (endDate && dateKey > endDate)) return;
+        Object.entries(day || {}).forEach(([shiftId, slot]) => {
+          if (!slot || typeof slot !== "object" || !slot.hostId || !slot.coHostId || !slot.startTime || !slot.endTime) return;
+          const room = rooms.get(slot.roomId || rootId);
+          records.push({ id: `${rootId}|${dateKey}|${shiftId}`, rootId, dateKey, shiftId, roomName: room?.name || slot.roomNameSnapshot || "", roomAccount: room?.account || slot.roomAccountSnapshot || "", shiftName: shifts.get(shiftId)?.label || slot.shiftLabelSnapshot || shiftId, hostName: people.get(slot.hostId)?.name || slot.hostNameSnapshot || "", coHostName: people.get(slot.coHostId)?.name || slot.coHostNameSnapshot || "", amount: typeof slot.performanceAmount === "number" ? slot.performanceAmount : null });
+        });
+      });
+    });
+    return records.sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.shiftName.localeCompare(b.shiftName));
+  }
+
+  function createPerformanceWorkbook(ExcelJS, state, startDate = "", endDate = "") {
+    if (!ExcelJS?.Workbook) throw new Error("ExcelJS 不可用");
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "直播排班工具";
+    const instructions = workbook.addWorksheet("填写说明");
+    const sheet = workbook.addWorksheet("业绩数据", { views: [{ state: "frozen", ySplit: 1 }] });
+    const options = workbook.addWorksheet("可选项", { state: "hidden" });
+    options.state = "hidden";
+    instructions.addRows([["业绩表填写说明"], ["只填写或修改业绩金额；主播、副播及排班信息用于核对，不会被业绩导入修改。"], ["金额必须为非负数，最多两位小数。"]]);
+    instructions.getColumn(1).width = 100;
+    instructions.getCell("A1").font = { name: "微软雅黑", size: 15, bold: true };
+    sheet.addRow(["日期", "直播间名称", "直播间账号", "班次", "主播", "副播", "业绩金额", "系统记录标识"]);
+    const header = sheet.getRow(1);
+    header.eachCell((cell) => { cell.font = { name: "微软雅黑", bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5597" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
+    performanceRecords(state, startDate, endDate).forEach((record) => {
+      const row = sheet.addRow([record.dateKey, record.roomName, record.roomAccount, record.shiftName, record.hostName, record.coHostName, record.amount, record.id]);
+      row.getCell(7).numFmt = '¥#,##0.00';
+      row.getCell(7).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFDF2" } };
+    });
+    [14, 18, 18, 18, 16, 16, 16, 24].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+    sheet.getColumn(8).hidden = true;
+    options.addRow(["templateType", "performance"]);
+    options.addRow(["templateVersion", TEMPLATE_VERSION]);
+    options.addRow(["fingerprint", configurationFingerprint(state)]);
+    return workbook;
+  }
+
+  function locatePerformanceRecord(state, id) {
+    const [rootId, dateKey, shiftId] = String(id || "").split("|");
+    const slot = state.schedules?.[rootId]?.days?.[dateKey]?.[shiftId];
+    return slot ? { rootId, dateKey, shiftId, slot } : null;
+  }
+
+  function parsePerformanceWorkbook(workbook, state) {
+    const errors = [];
+    const sheet = workbook?.getWorksheet?.("业绩数据");
+    const options = workbook?.getWorksheet?.("可选项");
+    if (!sheet || !options) return { entries: [], errors: [{ code: "missing-sheet", message: "缺少业绩数据或可选项" }], warnings: [] };
+    if (cellText(options.getCell("B1")) !== "performance") errors.push({ code: "wrong-template", message: "不是业绩模板" });
+    if (Number(cellText(options.getCell("B2"))) !== TEMPLATE_VERSION) errors.push({ code: "version-mismatch", message: "模板版本不兼容" });
+    if (cellText(options.getCell("B3")) !== configurationFingerprint(state)) errors.push({ code: "configuration-changed", message: "当前配置已变化" });
+    const entries = [];
+    for (let row = 2; row <= sheet.rowCount; row += 1) {
+      const id = cellText(sheet.getCell(row, 8));
+      const amountText = cellText(sheet.getCell(row, 7));
+      if (!id && !amountText) continue;
+      const found = locatePerformanceRecord(state, id);
+      if (!found) { errors.push({ code: "unknown-record", row, message: `第 ${row} 行排班记录不存在` }); continue; }
+      const hostName = cellText(sheet.getCell(row, 5));
+      const coHostName = cellText(sheet.getCell(row, 6));
+      const host = (state.people || []).find((item) => item.id === found.slot.hostId)?.name || found.slot.hostNameSnapshot || "";
+      const coHost = (state.people || []).find((item) => item.id === found.slot.coHostId)?.name || found.slot.coHostNameSnapshot || "";
+      if (hostName !== host || coHostName !== coHost) { errors.push({ code: "people-mismatch", row, message: `第 ${row} 行主播或副播与当前排班不一致` }); continue; }
+      const parsed = Logic.parsePerformanceAmount(amountText);
+      if (!parsed.valid) { errors.push({ code: "invalid-amount", row, message: `第 ${row} 行业绩金额无效` }); continue; }
+      if (parsed.value !== null) entries.push({ id, amount: parsed.value });
+    }
+    return { entries, errors, warnings: [] };
+  }
+
+  function preparePerformanceImport(state, parsed) {
+    const counts = { added: 0, updated: 0, skipped: 0 };
+    const errors = [...(parsed?.errors || [])];
+    if (errors.length) return { nextState: null, counts, errors, warnings: parsed?.warnings || [] };
+    const nextState = clone(state);
+    (parsed.entries || []).forEach((entry) => {
+      const found = locatePerformanceRecord(nextState, entry.id);
+      if (!found) { errors.push({ code: "unknown-record", message: `排班记录不存在：${entry.id}` }); return; }
+      if (found.slot.performanceAmount === entry.amount) counts.skipped += 1;
+      else { found.slot.performanceAmount = entry.amount; found.slot.performanceUpdatedAt = new Date().toISOString(); counts.updated += 1; }
+    });
+    if (errors.length) return { nextState: null, counts: { added: 0, updated: 0, skipped: 0 }, errors, warnings: parsed?.warnings || [] };
+    return { nextState, counts, errors, warnings: parsed?.warnings || [] };
+  }
+
+  return { TEMPLATE_VERSION, activeConfiguration, buildScheduleTemplateModel, configurationFingerprint, createPerformanceWorkbook, createScheduleTemplateWorkbook, parsePerformanceWorkbook, parseScheduleTemplateWorkbook, preparePerformanceImport, prepareScheduleImport, stableStringify };
 });

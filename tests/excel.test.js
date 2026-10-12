@@ -145,5 +145,21 @@ test("prefills a group day from its saved template group id", () => {
   assert.equal(blocked.nextState, null);
   assert.equal(blocked.counts.added, 0);
   console.log("PASS refuses to prepare a partial state when blocking errors exist");
+
+  const performanceBook = Excel.createPerformanceWorkbook(ExcelJS, importState, "2026-10-01", "2026-10-07");
+  const performanceBuffer = await performanceBook.xlsx.writeBuffer();
+  const reopenedPerformance = new ExcelJS.Workbook();
+  await reopenedPerformance.xlsx.load(performanceBuffer);
+  const performanceSheet = reopenedPerformance.getWorksheet("业绩数据");
+  assert.deepEqual(performanceSheet.getRow(1).values.slice(1), ["日期", "直播间名称", "直播间账号", "班次", "主播", "副播", "业绩金额", "系统记录标识"]);
+  performanceSheet.getCell("G2").value = 12000;
+  const parsedPerformance = Excel.parsePerformanceWorkbook(reopenedPerformance, importState);
+  assert.deepEqual(parsedPerformance.errors, []);
+  assert.equal(parsedPerformance.entries[0].amount, 12000);
+  const performancePreview = Excel.preparePerformanceImport(importState, parsedPerformance);
+  assert.equal(performancePreview.counts.updated, 1);
+  assert.equal(performancePreview.nextState.schedules.r1.days["2026-10-01"].s1.performanceAmount, 12000);
+  assert.equal(performancePreview.nextState.schedules.r1.days["2026-10-01"].s1.startTime, "08:00");
+  console.log("PASS round-trips performance without changing schedule fields");
   console.log("All Excel domain tests passed.");
 })().catch((error) => { console.error("FAIL creates horizontal schedule workbook"); throw error; });
