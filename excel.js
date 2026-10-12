@@ -94,6 +94,13 @@
     return `IF(${picked}="","",IF(TIMEVALUE(LEFT(${picked},5))<TIME(11,0,0),"08:00-16:00",IF(TIMEVALUE(LEFT(${picked},5))<TIME(16,0,0),"11:00-19:00","16:00-23:30")))`;
   }
 
+  function sheetLayoutFingerprint(sheet) {
+    const values = [];
+    for (let column = 1; column <= sheet.columnCount; column += 1) values.push([sheet.getCell(2, column).address, cellText(sheet.getCell(2, column))]);
+    for (let row = 3; row <= sheet.rowCount; row += 1) for (let column = 1; column <= 3; column += 1) values.push([sheet.getCell(row, column).address, cellText(sheet.getCell(row, column))]);
+    return hashText(stableStringify(values));
+  }
+
   async function createScheduleTemplateWorkbook(ExcelJS, state, startDate, endDate, prefill = false) {
     if (!ExcelJS?.Workbook) throw new Error("ExcelJS 不可用");
     const model = buildScheduleTemplateModel(state, startDate, endDate, prefill);
@@ -228,7 +235,7 @@
     config.addRow(["fingerprint", model.fingerprint]);
     config.addRow(["startDate", startDate]);
     config.addRow(["endDate", endDate]);
-    config.addRow([]);
+    config.addRow(["layoutFingerprint", sheetLayoutFingerprint(sheet)]);
     config.addRow(["cell", "date", "groupId", "field", "roomId", "personId"]);
     mappingRows.forEach((row) => config.addRow(row));
     return workbook;
@@ -254,15 +261,17 @@
     const config = workbook?.getWorksheet?.("模板配置");
     if (!sheet || !config) return { entries: [], errors: [{ code: "missing-sheet", message: "缺少排班填写表或模板配置" }], warnings };
     const metadata = new Map();
-    for (let row = 1; row <= 5; row += 1) metadata.set(cellText(config.getCell(row, 1)), cellText(config.getCell(row, 2)));
+    for (let row = 1; row <= 6; row += 1) metadata.set(cellText(config.getCell(row, 1)), cellText(config.getCell(row, 2)));
     if (metadata.get("templateType") !== "schedule") errors.push({ code: "wrong-template", message: "不是排班模板" });
     if (Number(metadata.get("templateVersion")) !== TEMPLATE_VERSION) errors.push({ code: "version-mismatch", message: "模板版本不兼容" });
     if (metadata.get("fingerprint") !== configurationFingerprint(state)) errors.push({ code: "configuration-changed", message: "班组、人员、班次或直播间配置已变化" });
+    if (metadata.get("layoutFingerprint") !== sheetLayoutFingerprint(sheet)) errors.push({ code: "layout-changed", message: "日期、班组、人员或直播间等系统字段已被修改" });
     const configById = activeConfiguration(state);
     const groups = new Map(configById.groups.map((item) => [item.id, item]));
     const shiftsByName = new Map(configById.shifts.map((item) => [item.name, item]));
     const rooms = new Map(configById.rooms.map((item) => [item.id, item]));
     const buckets = new Map();
+    const mappingKeys = new Set();
     for (let row = 8; row <= config.rowCount; row += 1) {
       const address = cellText(config.getCell(row, 1));
       const dateKey = cellText(config.getCell(row, 2));
@@ -276,6 +285,9 @@
         continue;
       }
       const key = `${dateKey}:${groupId}`;
+      const mappingKey = `${dateKey}:${groupId}:${field}:${roomId}:${personId}`;
+      if (mappingKeys.has(mappingKey)) { errors.push({ code: "duplicate-mapping", cell: address, message: `模板映射重复：${address}` }); continue; }
+      mappingKeys.add(mappingKey);
       if (!buckets.has(key)) buckets.set(key, { dateKey, groupId, group: groups.get(groupId), liveRanges: [] });
       const bucket = buckets.get(key);
       const value = cellText(sheet.getCell(address));

@@ -114,6 +114,12 @@ test("prefills a group day from its saved template group id", () => {
   const leaveConflict = Excel.parseScheduleTemplateWorkbook(reopened, sampleState());
   assert.ok(leaveConflict.errors.some((item) => item.code === "leave-live-conflict"));
   console.log("PASS blocks multiple rooms and leave-live contradictions");
+  fill.getCell("D5").value = "正常";
+  fill.getCell("C7").value = "被修改的直播间";
+  const changedLayout = Excel.parseScheduleTemplateWorkbook(reopened, sampleState());
+  assert.ok(changedLayout.errors.some((item) => item.code === "layout-changed"));
+  fill.getCell("C7").value = "主直播间（main）";
+  console.log("PASS blocks changes to protected visible system fields");
 
   const importState = sampleState();
   importState.settings.lastRoomKey = "r1";
