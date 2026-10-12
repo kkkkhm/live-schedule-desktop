@@ -538,7 +538,6 @@
     sheet.getRow(3).eachCell((cell) => { cell.font = { name: "微软雅黑", bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
 
     const shiftMap = new Map((state.settings?.shiftDefinitions || []).map((item) => [item.key, item]));
-    const groupMap = new Map(activeConfiguration(state).groups.map((item) => [item.id, item]));
     const peopleMap = new Map((state.people || []).map((item) => [item.id, item]));
     const roomMap = new Map((state.rooms || []).map((item) => [item.id, item]));
     const dateRows = new Map();
@@ -550,11 +549,14 @@
         Object.entries(day || {}).forEach(([shiftId, slot]) => {
           if (!slot || typeof slot !== "object" || !slot.startTime || !slot.endTime || (!slot.hostId && !slot.coHostId)) return;
           const room = roomMap.get(slot.roomId || rootId);
-          const group = groupMap.get(slot.templateGroupId);
           const host = peopleMap.get(slot.hostId)?.name || slot.hostNameSnapshot || "";
           const coHost = peopleMap.get(slot.coHostId)?.name || slot.coHostNameSnapshot || "";
           const attendance = Logic.attendanceWindowForTime(slot.startTime);
-          rows.push({ type: "schedule", account: room?.account || slot.roomAccountSnapshot || "", shift: shiftMap.get(shiftId)?.label || slot.shiftLabelSnapshot || shiftId, group: group?.name || [host, coHost].filter(Boolean).join(" & "), liveTime: `${slot.startTime}-${slot.endTime}`, attendance: attendance ? `${attendance.start}-${attendance.end}` : "", duration: `${Logic.durationHours(slot.startTime, slot.endTime)}h`, order: Number(shiftMap.get(shiftId)?.order) || 999 });
+          const hasOvertime = Boolean(slot.overtimeStartTime && slot.overtimeEndTime);
+          const overtimeHours = hasOvertime ? Logic.durationHours(slot.overtimeStartTime, slot.overtimeEndTime) : 0;
+          const totalHours = Math.round((Logic.durationHours(slot.startTime, slot.endTime) + overtimeHours) * 100) / 100;
+          const overtimeText = hasOvertime ? `；加班${slot.overtimeStartTime}-${slot.overtimeEndTime}` : "";
+          rows.push({ type: "schedule", account: room?.account || slot.roomAccountSnapshot || "", shift: shiftMap.get(shiftId)?.label || slot.shiftLabelSnapshot || shiftId, group: [host, coHost].filter(Boolean).join("&"), liveTime: `${slot.startTime}-${slot.endTime}${overtimeText}`, attendance: attendance ? `${attendance.start}-${attendance.end}` : "", duration: `${totalHours}h`, order: Number(shiftMap.get(shiftId)?.order) || 999 });
         });
         const leaveNames = (day.leavePeople || []).map((item) => peopleMap.get(item.personId)?.name || item.personNameSnapshot || "").filter(Boolean);
         if (leaveNames.length) rows.push({ type: "leave", account: "", shift: "休假", group: leaveNames.join("、"), liveTime: "", attendance: "", duration: "", order: 1000 });

@@ -177,8 +177,10 @@ test("prefills a group day from its saved template group id", () => {
   await reopenedDisplay.xlsx.load(displayBuffer);
   const displaySheet = reopenedDisplay.getWorksheet("展示版排班表");
   assert.deepEqual(displaySheet.getRow(3).values.slice(1), ["日期", "账号", "班次", "班组", "直播时间", "出勤时间", "直播时长"]);
+  assert.equal(displaySheet.getCell("D4").value, "主播甲&副播甲");
+  assert.equal(displaySheet.getCell("E4").value, "08:00-12:30；加班12:30-14:00");
   assert.equal(displaySheet.getCell("F4").value, "08:00-16:00");
-  assert.equal(displaySheet.getCell("G4").value, "4.5h");
+  assert.equal(displaySheet.getCell("G4").value, "6h");
   assert.ok(Array.from({ length: displaySheet.rowCount - 3 }, (_, index) => displaySheet.getCell(index + 4, 3).value).includes("休假"));
   console.log("PASS creates the seven-column attendance-aware display workbook");
   console.log("All Excel domain tests passed.");
