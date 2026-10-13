@@ -2,6 +2,7 @@
   "use strict";
   const Logic = window.ScheduleLogic;
   const Spreadsheet = window.ScheduleExcel;
+  const ChannelSummary = window.ChannelSummary;
   const STORAGE_KEY = "weekly-live-scheduler-v1";
   const PRE_V4_BACKUP_KEY = "weekly-live-scheduler-v3-pre-v4-backup";
   const VERSION = 5;
@@ -35,6 +36,8 @@
   let openLeaveDateKey = "";
   let performanceRangeMode = ["current", "30d", "3m", "all"].includes(state.settings?.performanceRangeMode) ? state.settings.performanceRangeMode : "current";
   let pendingExcelImport = null;
+  let pendingChannelSummaryFile = null;
+  let selectedChannelSummaryMonth = String(today.getMonth() + 1);
   let toastTimer;
   document.addEventListener("DOMContentLoaded", initialize);
 
@@ -49,11 +52,30 @@
       personForm: byId("personForm"), personIdInput: byId("personIdInput"), personNameInput: byId("personNameInput"), canHostInput: byId("canHostInput"), canCoHostInput: byId("canCoHostInput"), employmentTypeInput: byId("employmentTypeInput"), savePersonBtn: byId("savePersonBtn"), cancelPersonEditBtn: byId("cancelPersonEditBtn"), personFormError: byId("personFormError"), peopleTableBody: byId("peopleTableBody"),
       statsTableBody: byId("statsTableBody"), sessionCount: byId("sessionCount"), totalPersonHours: byId("totalPersonHours"), conflictList: byId("conflictList"), importFileInput: byId("importFileInput"), scheduleExcelInput: byId("scheduleExcelInput"), performanceExcelInput: byId("performanceExcelInput"), excelImportDialog: byId("excelImportDialog"), excelImportTitle: byId("excelImportTitle"), excelImportFileName: byId("excelImportFileName"), excelImportCounts: byId("excelImportCounts"), excelImportMode: byId("excelImportMode"), excelImportErrors: byId("excelImportErrors"), excelImportWarnings: byId("excelImportWarnings"), confirmExcelImportBtn: byId("confirmExcelImportBtn"), toast: byId("toast")
     });
+    Object.assign(elements, {
+      channelSummaryExcelInput: byId("channelSummaryExcelInput"),
+      selectChannelSummaryFileBtn: byId("selectChannelSummaryFileBtn"),
+      channelSummaryFileName: byId("channelSummaryFileName"),
+      channelSummaryMonthInput: byId("channelSummaryMonthInput"),
+      calculateChannelSummaryBtn: byId("calculateChannelSummaryBtn"),
+      channelSummaryHistorySelect: byId("channelSummaryHistorySelect"),
+      recalculateChannelSummaryBtn: byId("recalculateChannelSummaryBtn"),
+      exportChannelSummaryBtn: byId("exportChannelSummaryBtn"),
+      deleteChannelSummaryBtn: byId("deleteChannelSummaryBtn"),
+      channelSummaryStatus: byId("channelSummaryStatus"),
+      channelSummaryCards: byId("channelSummaryCards"),
+      channelSummaryTables: byId("channelSummaryTables"),
+      channelSummaryUnresolved: byId("channelSummaryUnresolved"),
+      channelSummaryUnresolvedTitle: byId("channelSummaryUnresolvedTitle"),
+      channelSummaryUnresolvedBody: byId("channelSummaryUnresolvedBody")
+    });
+    for (let month = 1; month <= 12; month += 1) elements.channelSummaryMonthInput.add(new Option(`${month}月`, String(month)));
+    elements.channelSummaryMonthInput.value = selectedChannelSummaryMonth;
     if (!roomKeyExists(selectedRoomKey)) selectedRoomKey = state.rooms.find((room) => room.active)?.id || Object.keys(state.schedules)[0] || "";
     if (selectedRoomKey) state.settings.lastRoomKey = selectedRoomKey;
     renderRangePickerButton();
     elements.historyStartInput.value = selectedStart; elements.historyEndInput.value = selectedEnd;
-    bindEvents(); renderAll(); renderOverview();
+    bindEvents(); renderAll(); renderOverview(); renderChannelSummary();
   }
   function byId(id) { return document.getElementById(id); }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -61,7 +83,7 @@
   function nowIso() { return new Date().toISOString(); }
   function validDateKey(value) { return Boolean(Logic.parseLocalDate(value)); }
   function defaultSettings() { return { shiftDefinitions: clone(DEFAULT_SHIFT_DEFINITIONS), formalGroups: DEFAULT_SHIFT_DEFINITIONS.map((shift, index) => ({ id: `group-${index + 1}`, name: `班组 ${index + 1}`, hostId: defaultPeople[index * 2]?.id || "", coHostId: defaultPeople[index * 2 + 1]?.id || "", defaultShiftId: shift.key, active: true, order: index + 1 })), partTimeGroup: { id: "part-time-group", name: "固定兼职班组", hostId: "", coHostId: "" }, scheduleTargets: { minimumShiftCount: 4, minimumTotalHours: 18, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 1.5 } }; }
-  function emptyState() { return { version: VERSION, people: clone(defaultPeople), rooms: [], schedules: {}, settings: defaultSettings() }; }
+  function emptyState() { return { version: VERSION, people: clone(defaultPeople), rooms: [], schedules: {}, settings: defaultSettings(), channelSummaryRecords: {} }; }
   function allShiftDefinitions() { return (state.settings.shiftDefinitions || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)); }
   function configurableShiftDefinitions() { return allShiftDefinitions().filter((shift) => !shift.deleted); }
   function activeShiftDefinitions() { return allShiftDefinitions().filter((shift) => shift.active !== false); }
@@ -89,6 +111,20 @@
     elements.importFileInput.addEventListener("change", importJson);
     elements.scheduleExcelInput.addEventListener("change", (event) => importExcelFile(event, "schedule"));
     elements.performanceExcelInput.addEventListener("change", (event) => importExcelFile(event, "performance"));
+    elements.selectChannelSummaryFileBtn.addEventListener("click", () => elements.channelSummaryExcelInput.click());
+    elements.channelSummaryExcelInput.addEventListener("change", selectChannelSummaryFile);
+    elements.channelSummaryMonthInput.addEventListener("change", () => { selectedChannelSummaryMonth = elements.channelSummaryMonthInput.value; });
+    elements.calculateChannelSummaryBtn.addEventListener("click", calculateChannelSummary);
+    elements.channelSummaryHistorySelect.addEventListener("change", () => { selectedChannelSummaryMonth = elements.channelSummaryHistorySelect.value; renderChannelSummary(); });
+    elements.recalculateChannelSummaryBtn.addEventListener("click", () => {
+      if (elements.channelSummaryHistorySelect.value) {
+        selectedChannelSummaryMonth = elements.channelSummaryHistorySelect.value;
+        elements.channelSummaryMonthInput.value = selectedChannelSummaryMonth;
+      }
+      elements.channelSummaryExcelInput.click();
+    });
+    elements.exportChannelSummaryBtn.addEventListener("click", exportChannelSummary);
+    elements.deleteChannelSummaryBtn.addEventListener("click", deleteChannelSummary);
     elements.excelImportMode.addEventListener("change", renderExcelImportPreview);
     elements.confirmExcelImportBtn.addEventListener("click", confirmExcelImport);
     elements.excelImportDialog.addEventListener("close", () => { pendingExcelImport = null; });
@@ -113,7 +149,7 @@
     };
     actions[command]?.();
   }
-  function activateTab(name) { document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name)); document.querySelectorAll("[data-panel]").forEach((panel) => { const active = panel.dataset.panel === name; panel.hidden = !active; panel.classList.toggle("active", active); }); if (name === "history") renderOverview(); if (name === "performance") renderPerformance(); if (name === "settings") renderScheduleSettings(); if (name === "stats") renderStats(); }
+  function activateTab(name) { document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name)); document.querySelectorAll("[data-panel]").forEach((panel) => { const active = panel.dataset.panel === name; panel.hidden = !active; panel.classList.toggle("active", active); }); if (name === "history") renderOverview(); if (name === "performance") renderPerformance(); if (name === "channel-summary") renderChannelSummary(); if (name === "settings") renderScheduleSettings(); if (name === "stats") renderStats(); }
   async function checkDesktopUpdate() {
     const bridge = window.desktopUpdates;
     if (!bridge) return showToast("仅桌面版支持检查更新", true);
@@ -133,6 +169,125 @@
     } catch (_error) {
       showToast("检查更新失败，请稍后重试", true);
     }
+  }
+  function channelSummaryRecords() {
+    if (!state.channelSummaryRecords || typeof state.channelSummaryRecords !== "object" || Array.isArray(state.channelSummaryRecords)) state.channelSummaryRecords = {};
+    return state.channelSummaryRecords;
+  }
+  function selectChannelSummaryFile(event) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!file) return;
+    if (!/\.xlsx$/i.test(file.name)) return showToast("请选择 .xlsx 格式的经营报表", true);
+    pendingChannelSummaryFile = file;
+    elements.channelSummaryFileName.textContent = file.name;
+    elements.calculateChannelSummaryBtn.disabled = false;
+    elements.channelSummaryStatus.textContent = `已选择 ${file.name}，请选择月份后计算。`;
+  }
+  async function calculateChannelSummary() {
+    if (!pendingChannelSummaryFile) return showToast("请先选择经营报表", true);
+    const month = Number(elements.channelSummaryMonthInput.value);
+    if (!Number.isInteger(month) || month < 1 || month > 12) return showToast("请选择 1 至 12 月", true);
+    const key = String(month);
+    if (channelSummaryRecords()[key] && !window.confirm(`${month}月已有保存结果，重新计算会覆盖该月记录。是否继续？`)) return;
+    elements.calculateChannelSummaryBtn.disabled = true;
+    elements.channelSummaryStatus.textContent = "正在读取并汇总经营报表，请稍候……";
+    try {
+      const workbook = new window.ExcelJS.Workbook();
+      await workbook.xlsx.load(await pendingChannelSummaryFile.arrayBuffer());
+      const record = ChannelSummary.summarizeWorkbook(workbook, month, { sourceFileName: pendingChannelSummaryFile.name });
+      channelSummaryRecords()[key] = record;
+      selectedChannelSummaryMonth = key;
+      saveState();
+      renderChannelSummary();
+      showToast(`${month}月经营汇总已保存`);
+    } catch (error) {
+      elements.channelSummaryStatus.textContent = `计算失败：${error.message || "无法读取源文件"}`;
+      showToast(error.message || "经营汇总计算失败", true);
+    } finally {
+      elements.calculateChannelSummaryBtn.disabled = !pendingChannelSummaryFile;
+    }
+  }
+  function renderChannelSummary() {
+    const records = channelSummaryRecords();
+    const months = Object.keys(records).filter((key) => records[key]?.sections).sort((a, b) => Number(b) - Number(a));
+    if (!records[selectedChannelSummaryMonth] && months.length) selectedChannelSummaryMonth = months[0];
+    elements.channelSummaryHistorySelect.replaceChildren();
+    if (!months.length) elements.channelSummaryHistorySelect.add(new Option("暂无记录", ""));
+    else months.forEach((month) => elements.channelSummaryHistorySelect.add(new Option(`${month}月 · ${records[month].sourceFileName || "经营报表"}`, month)));
+    elements.channelSummaryHistorySelect.value = records[selectedChannelSummaryMonth] ? selectedChannelSummaryMonth : "";
+    const record = records[elements.channelSummaryHistorySelect.value];
+    const hasRecord = Boolean(record);
+    elements.channelSummaryHistorySelect.disabled = !months.length;
+    elements.recalculateChannelSummaryBtn.disabled = !hasRecord;
+    elements.exportChannelSummaryBtn.disabled = !hasRecord;
+    elements.deleteChannelSummaryBtn.disabled = !hasRecord;
+    elements.channelSummaryCards.replaceChildren();
+    elements.channelSummaryTables.replaceChildren();
+    elements.channelSummaryUnresolvedBody.replaceChildren();
+    elements.channelSummaryUnresolved.hidden = true;
+    if (!record) {
+      elements.channelSummaryStatus.textContent = pendingChannelSummaryFile ? `已选择 ${pendingChannelSummaryFile.name}，请选择月份后计算。` : "请选择与“计算结果.xlsx”结构一致的源文件。";
+      return;
+    }
+    const calculatedAt = record.calculatedAt ? new Date(record.calculatedAt).toLocaleString("zh-CN", { hour12: false }) : "未知时间";
+    elements.channelSummaryStatus.textContent = `${record.month}月 · 来源：${record.sourceFileName || "经营报表"} · 计算于 ${calculatedAt}`;
+    record.sections.forEach((section) => {
+      const card = document.createElement("section");
+      card.className = "channel-summary-card";
+      const title = document.createElement("span"); title.textContent = section.channel;
+      const sales = document.createElement("strong"); sales.textContent = formatCurrency(section.totals.sales);
+      const detail = document.createElement("small"); detail.textContent = `${section.totals.accountCount} 个账号 · 退款 ${formatCurrency(section.totals.refunds)} · 退款率 ${formatSummaryPercent(section.totals.refundRate)}`;
+      card.append(title, sales, detail);
+      elements.channelSummaryCards.appendChild(card);
+
+      const block = document.createElement("section"); block.className = "channel-summary-table-card";
+      const heading = document.createElement("div"); heading.className = "channel-summary-table-heading";
+      const headingTitle = document.createElement("h3"); headingTitle.textContent = section.channel;
+      const headingTotal = document.createElement("span"); headingTotal.textContent = `销售 ${formatCurrency(section.totals.sales)} · 退款 ${formatCurrency(section.totals.refunds)}`;
+      heading.append(headingTitle, headingTotal);
+      const wrap = document.createElement("div"); wrap.className = "people-table-wrap";
+      const table = document.createElement("table"); table.className = "data-table channel-summary-table";
+      const thead = document.createElement("thead");
+      const header = document.createElement("tr"); ["归属", "账号", "本月销售", "本月退款", "退款率"].forEach((label) => { const cell = document.createElement("th"); cell.textContent = label; header.appendChild(cell); });
+      thead.appendChild(header);
+      const tbody = document.createElement("tbody");
+      section.rows.forEach((item) => { const row = document.createElement("tr"); row.append(textCell(item.affiliation), textCell(item.account), textCell(formatCurrency(item.sales)), textCell(formatCurrency(item.refunds)), textCell(formatSummaryPercent(item.refundRate))); tbody.appendChild(row); });
+      table.append(thead, tbody); wrap.appendChild(table); block.append(heading, wrap); elements.channelSummaryTables.appendChild(block);
+    });
+    if (record.unresolved?.length) {
+      elements.channelSummaryUnresolved.hidden = false;
+      elements.channelSummaryUnresolvedTitle.textContent = `未映射明细（${record.unresolved.length} 行）`;
+      record.unresolved.forEach((item) => { const row = document.createElement("tr"); row.append(textCell(String(item.rowNumber || "")), textCell(item.channel), textCell(item.account), textCell(item.affiliation), textCell(item.reason)); elements.channelSummaryUnresolvedBody.appendChild(row); });
+    }
+  }
+  function formatSummaryPercent(value) {
+    return new Intl.NumberFormat("zh-CN", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
+  }
+  async function exportChannelSummary() {
+    const record = channelSummaryRecords()[elements.channelSummaryHistorySelect.value];
+    if (!record) return showToast("请先选择已保存的月份", true);
+    elements.exportChannelSummaryBtn.disabled = true;
+    try {
+      const workbook = ChannelSummary.createSummaryWorkbook(window.ExcelJS, record);
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadFile(ChannelSummary.exportFileName(record), buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      showToast(`${record.month}月经营汇总已导出`);
+    } catch (error) {
+      showToast(error.message || "经营汇总导出失败", true);
+    } finally {
+      elements.exportChannelSummaryBtn.disabled = false;
+    }
+  }
+  function deleteChannelSummary() {
+    const key = elements.channelSummaryHistorySelect.value;
+    const record = channelSummaryRecords()[key];
+    if (!record || !window.confirm(`确定删除${record.month}月经营汇总记录吗？源 Excel 文件不会被删除。`)) return;
+    delete channelSummaryRecords()[key];
+    selectedChannelSummaryMonth = "";
+    saveState();
+    renderChannelSummary();
+    showToast(`${record.month}月经营汇总记录已删除`);
   }
   function currentDates() { try { return Logic.dateRange(selectedStart, selectedEnd, 14); } catch (error) { return []; } }
   function renderRangePickerButton() { if (elements.rangePickerText) elements.rangePickerText.textContent = `${formatShortDate(selectedStart)} — ${formatShortDate(selectedEnd)}`; }

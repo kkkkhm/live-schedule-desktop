@@ -644,6 +644,9 @@
       output.settings.partTimeGroup = { id: source.id || "part-time-group", name: "固定兼职班组", hostId: source.hostId || "", coHostId: source.coHostId || "" };
     }
     output.settings.scheduleTargets = { minimumShiftCount: 4, minimumTotalHours: 18, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 1.5, ...(output.settings.scheduleTargets || {}) };
+    output.channelSummaryRecords = output.channelSummaryRecords && typeof output.channelSummaryRecords === "object" && !Array.isArray(output.channelSummaryRecords)
+      ? output.channelSummaryRecords
+      : {};
     output.version = 5;
     return output;
   }

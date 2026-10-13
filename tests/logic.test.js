@@ -303,6 +303,7 @@ test("migrates V1 data to unassigned V5 without losing schedules", () => {
   assert.equal(result.schedules.unassigned.roomNameSnapshot, "未指定直播间");
   assert.equal(result.settings.shiftDefinitions.length, 4);
   assert.deepEqual(result.settings.scheduleTargets, { minimumShiftCount: 4, minimumTotalHours: 18, defaultNormalHours: 4.5, defaultOvertimeHours: 1.5, maximumOvertimeHours: 1.5 });
+  assert.deepEqual(result.channelSummaryRecords, {});
 });
 
 test("migrates a single-room V2 week into that room", () => {

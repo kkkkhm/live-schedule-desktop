@@ -18,6 +18,7 @@
   <input id="importFileInput" type="file" accept="application/json,.json" hidden>
   <input id="scheduleExcelInput" type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" hidden>
   <input id="performanceExcelInput" type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" hidden>
+  <input id="channelSummaryExcelInput" type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" hidden>
 
   <main>
     <section class="week-toolbar" aria-label="日期区间选择">
@@ -54,6 +55,7 @@
       <button class="tab active" data-tab="schedule">直播排班</button>
       <button class="tab" data-tab="history">历史记录</button>
       <button class="tab" data-tab="performance">业绩排名</button>
+      <button class="tab" data-tab="channel-summary">经营汇总</button>
       <button class="tab" data-tab="settings">排班设置</button>
       <button class="tab" data-tab="rooms">直播间管理</button>
       <button class="tab" data-tab="people">人员管理</button>
@@ -159,6 +161,41 @@
           </div>
         </section>
       </div>
+    </section>
+
+    <section id="channelSummaryPanel" class="panel" data-panel="channel-summary" hidden>
+      <div class="panel-heading">
+        <div>
+          <h2>经营汇总</h2>
+          <p>导入经营报表，按月份汇总视频号、抖音、小红书及全渠道的销售与退款。</p>
+        </div>
+      </div>
+      <div class="channel-summary-toolbar">
+        <div class="channel-summary-source">
+          <button id="selectChannelSummaryFileBtn" class="button secondary" type="button">选择经营报表</button>
+          <span id="channelSummaryFileName">尚未选择文件</span>
+        </div>
+        <label><span>汇总月份</span><select id="channelSummaryMonthInput"></select></label>
+        <button id="calculateChannelSummaryBtn" class="button primary" type="button" disabled>计算并保存</button>
+      </div>
+      <div class="channel-summary-history">
+        <label><span>已保存月份</span><select id="channelSummaryHistorySelect"><option value="">暂无记录</option></select></label>
+        <button id="recalculateChannelSummaryBtn" class="button secondary" type="button" disabled>重新选择文件计算</button>
+        <button id="exportChannelSummaryBtn" class="button secondary" type="button" disabled>导出 Excel</button>
+        <button id="deleteChannelSummaryBtn" class="button danger" type="button" disabled>删除本月记录</button>
+      </div>
+      <p id="channelSummaryStatus" class="channel-summary-status" role="status">请选择与“计算结果.xlsx”结构一致的源文件。</p>
+      <div id="channelSummaryCards" class="channel-summary-cards"></div>
+      <div id="channelSummaryTables" class="channel-summary-tables"></div>
+      <details id="channelSummaryUnresolved" class="channel-summary-unresolved" hidden>
+        <summary id="channelSummaryUnresolvedTitle">未映射明细</summary>
+        <div class="people-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>源表行号</th><th>渠道</th><th>直播账号</th><th>原归属值</th><th>原因</th></tr></thead>
+            <tbody id="channelSummaryUnresolvedBody"></tbody>
+          </table>
+        </div>
+      </details>
     </section>
 
     <section id="settingsPanel" class="panel" data-panel="settings" hidden>
@@ -322,6 +359,7 @@
   <script src="vendor/exceljs.min.js"></script>
   <script src="logic.js"></script>
   <script src="excel.js"></script>
+  <script src="channel-summary.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
